@@ -1,5 +1,4 @@
 .DS_Store
-spec
 spec/book
 spec/book/*
 node_modules

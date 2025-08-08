@@ -1,0 +1,5 @@
+[book]
+authors = ["Lightning Koala"]
+language = "en"
+src = "src"
+title = "FirePing Specification"
