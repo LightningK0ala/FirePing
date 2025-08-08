@@ -18,15 +18,16 @@ services:
   app:
     build:
       context: ./app
-      target: dev
+      target: ${DOCKER_TARGET:-dev}
     ports:
       - "4000:4000"
     env_file:
       - .env
     environment:
-      - MIX_ENV=dev
-      - DATABASE_URL=ecto://postgres:postgres@postgres:5432/app_dev
+      - MIX_ENV=${MIX_ENV:-dev}
+      - DATABASE_URL=ecto://postgres:postgres@postgres:5432/app_${MIX_ENV:-dev}
       - PHX_IP=0.0.0.0
+      - PORT=4000
     volumes:
       - ./app:/app
       - /app/deps
@@ -35,6 +36,7 @@ services:
       postgres:
         condition: service_healthy
     command: ["sh", "-c", "mix setup && mix phx.server"]
+    restart: ${RESTART_POLICY:-no}
 
 volumes:
   postgres_data:
