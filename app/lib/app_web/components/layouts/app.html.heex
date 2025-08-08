@@ -1,0 +1,32 @@
+<header class="bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="flex items-center justify-between py-4">
+      <div class="flex items-center gap-3">
+        <a href="/" class="flex items-center gap-2 text-xl">
+          <span class="select-none">🔥</span>
+          <span class="text-zinc-900 dark:text-zinc-100 font-semibold">FirePing</span>
+        </a>
+        <span class="hidden sm:inline-block text-xs bg-brand/10 dark:bg-brand/20 text-brand rounded-full px-2 py-0.5">
+          Beta
+        </span>
+      </div>
+      <nav class="flex items-center gap-2 text-sm">
+        <button id="theme-toggle" type="button" phx-hook="ThemeToggle" class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800">
+          <span class="hero-moon h-4 w-4"></span>
+          <span class="hidden sm:inline">Theme</span>
+        </button>
+        <a href={~p"/session/logout"} class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+          <.icon name="hero-arrow-right-on-rectangle" class="h-5 w-5" />
+          <span class="hidden sm:inline">Logout</span>
+        </a>
+      </nav>
+    </div>
+  </div>
+  <.flash_group flash={@flash} />
+</header>
+
+<main class="py-8">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <%= @inner_content %>
+  </div>
+</main>

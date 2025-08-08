@@ -1,0 +1,51 @@
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+
+/* This file is for your main application CSS */
+
+/* Dark mode tweaks (class-based) */
+.dark body {
+  background-color: rgb(24 24 27);
+  color: rgb(244 244 245);
+}
+
+/* Fix Chrome/Safari autofill colors so they respect light/dark themes */
+input:-webkit-autofill,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: rgb(17 24 39) !important; /* zinc-900 */
+  box-shadow: 0 0 0px 1000px #ffffff inset !important; /* light bg */
+  caret-color: rgb(17 24 39) !important;
+}
+
+.dark input:-webkit-autofill,
+.dark textarea:-webkit-autofill,
+.dark select:-webkit-autofill {
+  -webkit-text-fill-color: rgb(244 244 245) !important; /* zinc-100 */
+  box-shadow: 0 0 0px 1000px #09090b inset !important; /* zinc-950 */
+  caret-color: rgb(244 244 245) !important;
+  border-color: rgb(63 63 70); /* zinc-700 */
+}
+
+/* Ensure hover/focus retain the same autofill styling */
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-text-fill-color: rgb(17 24 39) !important;
+  box-shadow: 0 0 0px 1000px #ffffff inset !important;
+}
+.dark input:-webkit-autofill:hover,
+.dark input:-webkit-autofill:focus,
+.dark input:-webkit-autofill:active {
+  -webkit-text-fill-color: rgb(244 244 245) !important;
+  box-shadow: 0 0 0px 1000px #09090b inset !important;
+}
+
+/* Firefox */
+input:-moz-autofill,
+textarea:-moz-autofill,
+select:-moz-autofill {
+  box-shadow: 0 0 0px 1000px inherit inset !important;
+  filter: none;
+}

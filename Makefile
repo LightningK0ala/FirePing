@@ -1,0 +1,87 @@
+.PHONY: help setup app-dev spec-dev test test-dev test-watch clean db-up db-ready db-down db-reset format check import-fires admin-grant admin-revoke admin-list fire-fetch fire-debug fire-count fire-test
+
+help: ## Show this help message
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
+setup: ## Initial project setup (deps, create DB, migrate)
+	cd app && mix setup
+
+app-dev: db-ready ## Start Phoenix development server with IEx
+	cd app && iex -S mix phx.server
+
+spec-dev: ## Start spec documentation server
+	mdbook serve spec
+
+test: db-ready ## Run tests
+	cd app && mix test
+
+test-dev: db-ready ## Run tests in watch mode
+	cd app && mix test.watch
+
+test-watch: ## Run tests in watch mode
+	cd app && mix test.watch
+
+format: ## Format code
+	cd app && mix format
+
+check: ## Run code analysis (format check, credo)
+	cd app && mix format --check-formatted
+	cd app && mix credo
+
+clean: ## Clean build artifacts
+	cd app && mix clean
+
+db-up: ## Start database container
+	docker-compose up -d postgres
+
+db-ready: ## Ensure database container is up and ready to accept connections
+	@docker-compose up -d postgres
+	@echo "Waiting for Postgres to be ready..."
+	@until docker-compose exec -T postgres pg_isready -U postgres >/dev/null 2>&1; do sleep 1; done; echo ready
+
+db-down: ## Stop database container
+	docker-compose down
+
+db-reset: ## Reset database (drop, create, migrate) for both dev and test
+	cd app && mix ecto.drop && mix ecto.create && mix ecto.migrate
+	cd app && MIX_ENV=test mix ecto.drop && MIX_ENV=test mix ecto.create && MIX_ENV=test mix ecto.migrate
+
+db-seed: ## Run database seeds
+	cd app && mix run priv/repo/seeds.exs
+
+import-fires: ## Import sample NASA FIRMS fire data from CSV
+	cd app && mix import_sample_fires
+
+admin-grant: ## Grant admin privileges to user (usage: make admin-grant user@example.com)
+	@if [ -z "$(filter-out $@,$(MAKECMDGOALS))" ]; then echo "Usage: make admin-grant user@example.com"; exit 1; fi
+	cd app && mix admin.grant $(filter-out $@,$(MAKECMDGOALS))
+
+admin-revoke: ## Revoke admin privileges from user (usage: make admin-revoke user@example.com)
+	@if [ -z "$(filter-out $@,$(MAKECMDGOALS))" ]; then echo "Usage: make admin-revoke user@example.com"; exit 1; fi
+	cd app && mix admin.revoke $(filter-out $@,$(MAKECMDGOALS))
+
+admin-list: ## List all admin users
+	cd app && mix admin.list
+
+fire-fetch: ## Manually trigger FireFetch job (usage: make fire-fetch or make fire-fetch days=3)
+	@if [ -n "$(days)" ]; then \
+		cd app && mix fire_fetch $(days); \
+	else \
+		cd app && mix fire_fetch; \
+	fi
+
+fire-debug: ## Debug NASA FIRMS API response (usage: make fire-debug or make fire-debug days=3)
+	@if [ -n "$(days)" ]; then \
+		cd app && mix fire_debug $(days); \
+	else \
+		cd app && mix fire_debug; \
+	fi
+
+fire-count: ## Show fire database statistics
+	cd app && mix fire_count
+
+fire-test: ## Test FireFetch logic synchronously with detailed logging
+	cd app && mix fire_test
+
+%:
+	@:
