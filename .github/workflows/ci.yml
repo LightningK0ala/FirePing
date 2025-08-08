@@ -23,24 +23,24 @@ jobs:
     
     - name: Start services
       run: |
-        docker-compose up -d
+        docker compose up -d
         sleep 15
     
     - name: Run tests
       run: |
-        docker-compose exec -T app mix test
+        docker compose exec -T app mix test
     
     - name: Check compilation warnings
       run: |
-        docker-compose exec -T app mix compile --warnings-as-errors
+        docker compose exec -T app mix compile --warnings-as-errors
     
     - name: Run code analysis
       run: |
-        docker-compose exec -T app mix format --check-formatted
-        docker-compose exec -T app mix credo
+        docker compose exec -T app mix format --check-formatted
+        docker compose exec -T app mix credo
     
     - name: Stop services
-      run: docker-compose down
+      run: docker compose down
 
   build-production:
     runs-on: ubuntu-latest

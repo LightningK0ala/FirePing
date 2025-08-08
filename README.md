@@ -16,17 +16,14 @@ FirePing is a simple, accessible Phoenix LiveView app that delivers instant fire
 
 - 💧 **Elixir + Phoenix LiveView** (app + frontend)
 - 🗄️ **PostgreSQL + PostGIS** (primary + spatial data)
-- 🐳 **Docker + docker-compose** (database container)
+- 🐳 **Docker + docker-compose** (full containerized development)
 - 📊 **Phoenix LiveDashboard + AppSignal** (monitoring)
 
 ## Quick Start 🚀
 
 Prerequisites 📋:
 
-- Elixir/OTP (recommended: Elixir 1.18.x, OTP 27)
 - Docker and docker-compose
-- Node.js (for Phoenix asset tooling, if you plan to modify assets)
-- mdBook (optional, for `spec` docs): install from `https://rust-lang.github.io/mdBook/`
 - NASA FIRMS API key (MAP_KEY) 🔑 — request it via the widget at the bottom of the FIRMS Area API page. Quota: 5000 transactions per 10-minute interval; larger requests (e.g., multi-day range) may count as multiple. See [FIRMS Area API](https://firms.modaps.eosdis.nasa.gov/api/area/).
 
 1. Clone and configure environment 🧩
@@ -35,42 +32,82 @@ Prerequisites 📋:
 git clone https://github.com/LightningK0ala/FirePing.git
 cd FirePing
 cp .env.example .env
-# Edit .env with any required secrets (e.g., VAPID keys, email/SMS provider configs)
-# Add your NASA FIRMS API key once requested from the page above
+# Edit .env with your NASA FIRMS API key and other secrets
 # Example:
 # NASA_FIRMS_API_KEY=your_api_key_here
 ```
 
-2. Start the database 🐘
+2. Start the application 🚀
 
 ```bash
-make db-up
-```
-
-3. App setup (deps, create DB, migrate) 🛠️
-
-```bash
-make setup
-```
-
-4. Run the app (dev) ▶️
-
-```bash
-make app-dev
+make docker-build
 # Visit http://localhost:4000
 ```
 
-5. Run tests ✅
+That's it! The app and database will start automatically in Docker containers.
+
+3. Run tests ✅
 
 ```bash
-make test
+make docker-test
+```
+
+## Alternative: Local Development (without Docker)
+
+If you prefer running Elixir locally:
+
+Prerequisites: Elixir/OTP (1.15.x, OTP 26), Node.js, Docker (for database only)
+
+```bash
+make db-up      # Start database only
+make setup      # Install deps, create DB, migrate
+make app-dev    # Start Phoenix with IEx
+make test       # Run tests locally
 ```
 
 ## Common Tasks (Makefile) 🧰
 
 The project provides convenient targets. Below is a practical subset; run `make help` for the full list.
 
-### Setup & Development 🧑‍💻
+### Docker Development 🐳 (Recommended)
+
+- **Start all services**:
+
+  ```bash
+  make docker-up
+  ```
+
+- **Build and start all services**:
+
+  ```bash
+  make docker-build
+  ```
+
+- **Stop all services**:
+
+  ```bash
+  make docker-down
+  ```
+
+- **View logs**:
+
+  ```bash
+  make docker-logs
+  ```
+
+- **Run tests in container**:
+
+  ```bash
+  make docker-test
+  ```
+
+- **Start Phoenix with Docker**:
+
+  ```bash
+  make app-docker
+  ```
+
+### Local Development 💻
 
 - **Install deps, create and migrate DB**:
 
@@ -78,7 +115,7 @@ The project provides convenient targets. Below is a practical subset; run `make 
   make setup
   ```
 
-- **Run Phoenix with IEx**:
+- **Run Phoenix with IEx (local)**:
 
   ```bash
   make app-dev
@@ -92,7 +129,7 @@ The project provides convenient targets. Below is a practical subset; run `make 
 
 ### Database 🗃️
 
-- **Start DB**:
+- **Start DB only**:
 
   ```bash
   make db-up
@@ -117,13 +154,19 @@ The project provides convenient targets. Below is a practical subset; run `make 
 
 ### Tests ✅
 
-- **Run once**:
+- **Run tests (Docker)**:
+
+  ```bash
+  make docker-test
+  ```
+
+- **Run tests (local)**:
 
   ```bash
   make test
   ```
 
-- **Watch mode**:
+- **Watch mode (local)**:
   ```bash
   make test-watch
   ```
@@ -188,17 +231,33 @@ The project provides convenient targets. Below is a practical subset; run `make 
   # mdBook serves at http://localhost:3000 by default unless configured otherwise
   ```
 
+## Deployment 🚀
+
+For VPS deployment:
+
+```bash
+git clone https://github.com/LightningK0ala/FirePing.git
+cd FirePing
+cp .env.example .env
+# Edit .env with production secrets and NASA API key
+make docker-build
+```
+
+Your production environment will run the same tested containers from CI.
+
 ## Notes 📝
 
-- The DB runs via docker-compose. App connects using standard Phoenix `dev.exs`/`test.exs` settings.
-- If you change environment variables, restart the app process.
-- For Web Push (VAPID), Email, SMS, and Webhook delivery, ensure the related credentials are configured in `.env` and mapped into your runtime configuration.
+- **Docker-first development**: The entire stack (app + database) runs in containers for consistency.
+- **Environment variables**: Edit `.env` file and restart containers with `make docker-down && make docker-up`.
+- **CI/CD**: GitHub Actions automatically tests with the same Docker setup.
+- For Web Push (VAPID), Email, SMS, and Webhook delivery, ensure the related credentials are configured in `.env`.
 
 ## Troubleshooting 🧯
 
-- DB not ready: run `make db-ready` or inspect logs with `docker-compose logs postgres`.
-- Port conflicts: stop other services on ports used by Phoenix (default 4000) or Postgres.
-- Missing tools: ensure Elixir/OTP, Docker, and (optionally) mdBook are installed and on PATH.
+- **Services won't start**: Run `make docker-logs` to see container logs.
+- **Port conflicts**: Stop other services on ports 4000 (Phoenix) or 5432 (Postgres).
+- **Database issues**: Run `make docker-down && make docker-build` to reset.
+- **Missing Docker**: Install Docker and docker-compose from [docker.com](https://docker.com).
 
 ## License 📄
 
