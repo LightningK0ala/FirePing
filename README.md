@@ -27,6 +27,7 @@ Prerequisites 📋:
 - Docker and docker-compose
 - Node.js (for Phoenix asset tooling, if you plan to modify assets)
 - mdBook (optional, for `spec` docs): install from `https://rust-lang.github.io/mdBook/`
+- NASA FIRMS API key (MAP_KEY) 🔑 — request it via the widget at the bottom of the FIRMS Area API page. Quota: 5000 transactions per 10-minute interval; larger requests (e.g., multi-day range) may count as multiple. See [FIRMS Area API](https://firms.modaps.eosdis.nasa.gov/api/area/).
 
 1. Clone and configure environment 🧩
 
@@ -35,6 +36,9 @@ git clone https://github.com/LightningK0ala/FirePing.git
 cd FirePing
 cp .env.example .env
 # Edit .env with any required secrets (e.g., VAPID keys, email/SMS provider configs)
+# Add your NASA FIRMS API key once requested from the page above
+# Example:
+# NASA_FIRMS_API_KEY=your_api_key_here
 ```
 
 2. Start the database 🐘

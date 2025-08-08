@@ -1,4 +1,4 @@
-.PHONY: help setup app-dev spec-dev test test-dev test-watch clean db-up db-ready db-down db-reset format check import-fires admin-grant admin-revoke admin-list fire-fetch fire-debug fire-count fire-test
+.PHONY: help setup app-dev spec-dev test test-dev test-watch clean db-up db-ready db-down db-reset format check import-fires admin-grant admin-revoke admin-list fire-fetch fire-debug fire-count fire-test docker-up docker-down docker-build docker-logs docker-test
 
 help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -6,8 +6,26 @@ help: ## Show this help message
 setup: ## Initial project setup (deps, create DB, migrate)
 	cd app && mix setup
 
-app-dev: db-ready ## Start Phoenix development server with IEx
+docker-up: ## Start all services with Docker Compose
+	docker-compose up -d
+
+docker-down: ## Stop all Docker Compose services
+	docker-compose down
+
+docker-build: ## Build and start all services with Docker Compose
+	docker-compose up -d --build
+
+docker-logs: ## Show logs from all Docker services
+	docker-compose logs -f
+
+docker-test: ## Run tests in Docker container
+	docker-compose run --rm app mix test
+
+app-dev: db-ready ## Start Phoenix development server with IEx (local)
 	cd app && iex -S mix phx.server
+
+app-docker: ## Start Phoenix development server with Docker
+	docker-compose up
 
 spec-dev: ## Start spec documentation server
 	mdbook serve spec

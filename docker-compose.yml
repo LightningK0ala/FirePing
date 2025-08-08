@@ -17,5 +17,27 @@ services:
       timeout: 5s
       retries: 5
 
+  app:
+    build:
+      context: ./app
+      target: dev
+    ports:
+      - "4000:4000"
+    env_file:
+      - .env
+    environment:
+      - MIX_ENV=dev
+      - DATABASE_URL=ecto://postgres:postgres@postgres:5432/app_dev
+      - PHX_HOST=localhost
+      - PHX_IP=0.0.0.0
+    volumes:
+      - ./app:/app
+      - /app/deps
+      - /app/_build
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["sh", "-c", "mix setup && mix phx.server"]
+
 volumes:
   postgres_data:

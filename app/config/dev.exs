@@ -11,6 +11,11 @@ config :app, App.Repo,
   pool_size: 10,
   types: App.PostgresTypes
 
+# Override database config with DATABASE_URL if present (for Docker)
+if database_url = System.get_env("DATABASE_URL") do
+  config :app, App.Repo, url: database_url
+end
+
 # For development, we disable any cache and enable
 # debugging and code reloading.
 #
@@ -20,7 +25,10 @@ config :app, App.Repo,
 config :app, AppWeb.Endpoint,
   # Binding to loopback ipv4 address prevents access from other machines.
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
-  http: [ip: {127, 0, 0, 1}, port: 4000],
+  http: [
+    ip: if(System.get_env("PHX_IP"), do: {0, 0, 0, 0}, else: {127, 0, 0, 1}), 
+    port: 4000
+  ],
   check_origin: false,
   code_reloader: true,
   debug_errors: true,
