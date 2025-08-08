@@ -3,8 +3,10 @@
 help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-setup: ## Initial project setup (deps, create DB, migrate)
+setup: ## Initial project setup (deps, create DB, migrate, hooks)
 	cd app && mix setup
+	@echo "Setting up Git hooks..."
+	@./scripts/setup-hooks.sh
 
 docker-up: ## Start all services with Docker Compose
 	docker-compose up -d
