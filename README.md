@@ -1,16 +1,21 @@
 ## FirePing 🔥🛰️
 
-FirePing is a simple, accessible Phoenix LiveView app that delivers instant fire notifications for user-defined geographic areas using NASA FIRMS data.
+FirePing is a Phoenix LiveView web application that provides fire monitoring and visualization for user-defined geographic areas using NASA FIRMS satellite data.
 
-### Highlights ✨
+### Current Features ✨
 
-- **Authentication** 🔐: Email-based OTP (6-digit). Auto-registers unrecognized emails
-- **Locations** 📍: Per-user saved locations (GPS) with custom radius (meters)
-- **Notifications** 📣: Web Push (VAPID), Email, SMS, Webhook
-- **Preferences** ⚙️: Notification frequency and lifecycle controls
-- **Services** 🧩:
-  - **FireFetch** 📡: Pulls recent fires from NASA FIRMS
-  - **FireNotify** 📬: Sends notifications to users with matching locations
+- **Authentication** 🔐: Email-based OTP (6-digit code). Auto-registers new emails
+- **Interactive Map** 🗺️: View fire locations with intensity-based sizing and confidence color coding
+- **Location Management** 📍: Add/edit/delete locations with custom radius settings (GPS coordinates)
+- **Fire Visualization** 🔥: Real-time fire data from NASA VIIRS satellites with spatial queries
+- **Admin Panel** 🛠️: LiveDashboard (system metrics) and Oban Web (job monitoring)
+- **Data Integration** 📡: **FireFetch** service pulls recent fires from NASA FIRMS API via scheduled jobs
+
+### Planned Features 🚧
+
+- **Notifications** 📣: Web Push (VAPID), Email, SMS, Webhook alerts
+- **FireNotify Service** 📬: Automated user notifications for fires within location radius
+- **Notification Preferences** ⚙️: Frequency and lifecycle controls
 
 ### Tech Stack 🧰
 

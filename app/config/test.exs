@@ -14,6 +14,11 @@ config :app, App.Repo,
   pool_size: System.schedulers_online() * 2,
   types: App.PostgresTypes
 
+# Override database config with DATABASE_URL if present (for Docker)
+if database_url = System.get_env("DATABASE_URL") do
+  config :app, App.Repo, url: database_url
+end
+
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
 config :app, AppWeb.Endpoint,

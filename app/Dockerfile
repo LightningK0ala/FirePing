@@ -2,7 +2,7 @@
 FROM elixir:1.15.7-otp-26-alpine as build
 
 # Install build dependencies
-RUN apk add --no-cache build-base git python3
+RUN apk add --no-cache build-base git python3 cmake
 
 # Create app directory
 WORKDIR /app
@@ -61,7 +61,7 @@ CMD ["./bin/app", "start"]
 FROM elixir:1.15.7-otp-26-alpine as dev
 
 # Install development dependencies
-RUN apk add --no-cache build-base git python3 inotify-tools
+RUN apk add --no-cache build-base git python3 cmake inotify-tools bash
 
 # Create app directory
 WORKDIR /app

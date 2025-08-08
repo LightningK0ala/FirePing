@@ -1,4 +1,4 @@
-.PHONY: help setup app-dev spec-dev test test-dev test-watch clean db-up db-ready db-down db-reset format check import-fires admin-grant admin-revoke admin-list fire-fetch fire-debug fire-count fire-test docker-up docker-down docker-build docker-logs docker-test
+.PHONY: help setup app-dev spec-dev test test-dev test-watch clean db-up db-ready db-down db-reset format check import-fires admin-grant admin-revoke admin-list fire-fetch fire-debug fire-count fire-test docker-up docker-down docker-build docker-logs docker-test docker-test-watch
 
 help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -18,8 +18,11 @@ docker-build: ## Build and start all services with Docker Compose
 docker-logs: ## Show logs from all Docker services
 	docker-compose logs -f
 
-docker-test: ## Run tests in Docker container
-	docker-compose run --rm -e MIX_ENV=test app mix test
+docker-test: ## Run tests in running container
+	docker-compose exec app sh -c 'MIX_ENV=test DATABASE_URL=ecto://postgres:postgres@postgres:5432/app_test mix test'
+
+docker-test-watch: ## Run tests in watch mode in running container
+	docker-compose exec app sh -c 'MIX_ENV=test DATABASE_URL=ecto://postgres:postgres@postgres:5432/app_test mix test.watch'
 
 app-dev: db-ready ## Start Phoenix development server with IEx (local)
 	cd app && iex -S mix phx.server
