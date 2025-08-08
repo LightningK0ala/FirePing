@@ -19,7 +19,7 @@ docker-logs: ## Show logs from all Docker services
 	docker-compose logs -f
 
 docker-test: ## Run tests in Docker container
-	docker-compose run --rm app mix test
+	docker-compose run --rm -e MIX_ENV=test app mix test
 
 app-dev: db-ready ## Start Phoenix development server with IEx (local)
 	cd app && iex -S mix phx.server
