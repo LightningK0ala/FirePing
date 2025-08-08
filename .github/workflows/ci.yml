@@ -16,27 +16,28 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
     
-    - name: Build Docker image
+    - name: Create test environment file
       run: |
-        docker build -f app/Dockerfile -t fireapp:test --target build app/
+        cp .env.example .env
+        echo "SECRET_KEY_BASE=$(openssl rand -base64 48)" >> .env
     
     - name: Start services
       run: |
-        docker-compose up -d postgres
-        sleep 10
+        docker-compose up -d
+        sleep 15
     
     - name: Run tests
       run: |
-        docker run --rm \
-          --network container:$(docker-compose ps -q postgres) \
-          -e MIX_ENV=test \
-          -e DATABASE_URL=ecto://postgres:postgres@localhost:5432/app_test \
-          fireapp:test \
-          sh -c "mix deps.get && mix ecto.create && mix ecto.migrate && mix test"
+        docker-compose exec -T app mix test
     
-    - name: Check compilation
+    - name: Check compilation warnings
       run: |
-        docker run --rm fireapp:test mix compile --warnings-as-errors
+        docker-compose exec -T app mix compile --warnings-as-errors
+    
+    - name: Run code analysis
+      run: |
+        docker-compose exec -T app mix format --check-formatted
+        docker-compose exec -T app mix credo
     
     - name: Stop services
       run: docker-compose down
@@ -51,10 +52,16 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
     
+    - name: Create production environment file
+      run: |
+        cp .env.example .env
+        echo "SECRET_KEY_BASE=$(openssl rand -base64 48)" >> .env
+        echo "DATABASE_URL=ecto://postgres:postgres@postgres:5432/app_prod" >> .env
+    
     - name: Build production image
       run: |
         docker build -f app/Dockerfile -t fireapp:prod --target runtime app/
     
-    - name: Test production build
+    - name: Test production build starts
       run: |
         docker run --rm fireapp:prod ./bin/app version
