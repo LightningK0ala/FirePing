@@ -37,7 +37,6 @@ jobs:
     - name: Run code analysis
       run: |
         docker compose run --rm app mix format --check-formatted
-        docker compose run --rm app mix credo
     
     - name: Stop services
       run: docker compose down

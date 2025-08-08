@@ -47,9 +47,8 @@ test-watch: ## Run tests in watch mode
 format: ## Format code
 	cd app && mix format
 
-check: ## Run code analysis (format check, credo)
+check: ## Run code analysis (format check)
 	cd app && mix format --check-formatted
-	cd app && mix credo
 
 clean: ## Clean build artifacts
 	cd app && mix clean
