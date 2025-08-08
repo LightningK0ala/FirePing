@@ -10,22 +10,28 @@ defmodule App.Factory do
   def location_factory do
     %App.Location{
       name: sequence(:name, &"Location #{&1}"),
-      latitude: 40.7128,  # NYC coordinates (default)
+      # NYC coordinates (default)
+      latitude: 40.7128,
       longitude: -74.0060,
-      radius: 5000,       # 5km default radius
+      # 5km default radius
+      radius: 5000,
       point: %Geo.Point{coordinates: {-74.0060, 40.7128}, srid: 4326},
       user: build(:user)
     }
   end
-  
+
   # Use ExMachina's callback to update geometry when lat/lng change
   def location_factory(attrs) when is_map(attrs) do
     location = location_factory()
     updated_location = struct!(location, attrs)
-    
+
     # Regenerate point if coordinates changed
     if Map.has_key?(attrs, :latitude) or Map.has_key?(attrs, :longitude) do
-      point = %Geo.Point{coordinates: {updated_location.longitude, updated_location.latitude}, srid: 4326}
+      point = %Geo.Point{
+        coordinates: {updated_location.longitude, updated_location.latitude},
+        srid: 4326
+      }
+
       %{updated_location | point: point}
     else
       updated_location
@@ -55,11 +61,14 @@ defmodule App.Factory do
   def fire_factory(attrs) when is_map(attrs) do
     fire = fire_factory()
     updated_fire = struct!(fire, attrs)
-    
+
     # Regenerate point and nasa_id if coordinates changed
     if Map.has_key?(attrs, :latitude) or Map.has_key?(attrs, :longitude) do
       point = %Geo.Point{coordinates: {updated_fire.longitude, updated_fire.latitude}, srid: 4326}
-      nasa_id = "#{Float.round(updated_fire.latitude, 4)}_#{Float.round(updated_fire.longitude, 4)}_2025-08-07_105_N21_#{System.unique_integer()}"
+
+      nasa_id =
+        "#{Float.round(updated_fire.latitude, 4)}_#{Float.round(updated_fire.longitude, 4)}_2025-08-07_105_N21_#{System.unique_integer()}"
+
       %{updated_fire | point: point, nasa_id: nasa_id}
     else
       updated_fire

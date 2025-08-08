@@ -30,8 +30,8 @@ defmodule App.Location do
   end
 
   defp validate_latitude(changeset) do
-    validate_number(changeset, :latitude, 
-      greater_than_or_equal_to: -90, 
+    validate_number(changeset, :latitude,
+      greater_than_or_equal_to: -90,
       less_than_or_equal_to: 90,
       message: "must be between -90 and 90"
     )
@@ -40,7 +40,7 @@ defmodule App.Location do
   defp validate_longitude(changeset) do
     validate_number(changeset, :longitude,
       greater_than_or_equal_to: -180,
-      less_than_or_equal_to: 180, 
+      less_than_or_equal_to: 180,
       message: "must be between -180 and 180"
     )
   end
@@ -55,11 +55,12 @@ defmodule App.Location do
   defp maybe_create_point(changeset) do
     latitude = get_field(changeset, :latitude) || get_change(changeset, :latitude)
     longitude = get_field(changeset, :longitude) || get_change(changeset, :longitude)
-    
+
     case {latitude, longitude} do
       {lat, lng} when is_number(lat) and is_number(lng) ->
         point = %Geo.Point{coordinates: {lng, lat}, srid: 4326}
         put_change(changeset, :point, point)
+
       _ ->
         changeset
     end
@@ -73,7 +74,7 @@ defmodule App.Location do
       "radius" => attrs["radius"],
       "user_id" => user.id
     }
-    
+
     %__MODULE__{}
     |> changeset(attrs_with_user)
     |> App.Repo.insert()
@@ -93,10 +94,17 @@ defmodule App.Location do
 
   def within_radius(fire_lat, fire_lng, radius_meters) do
     fire_point = %Geo.Point{coordinates: {fire_lng, fire_lat}, srid: 4326}
-    
+
     __MODULE__
-    |> where([l], fragment("ST_DWithin(ST_Transform(?, 3857), ST_Transform(?, 3857), ?)", 
-                          l.point, ^fire_point, ^radius_meters))
+    |> where(
+      [l],
+      fragment(
+        "ST_DWithin(ST_Transform(?, 3857), ST_Transform(?, 3857), ?)",
+        l.point,
+        ^fire_point,
+        ^radius_meters
+      )
+    )
     |> App.Repo.all()
   end
 

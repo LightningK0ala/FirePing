@@ -3,7 +3,8 @@ defmodule App.Fire do
   import Ecto.Changeset
   import Ecto.Query
 
-  @derive {Jason.Encoder, only: [:id, :latitude, :longitude, :detected_at, :confidence, :frp, :satellite]}
+  @derive {Jason.Encoder,
+           only: [:id, :latitude, :longitude, :detected_at, :confidence, :frp, :satellite]}
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
 
@@ -12,26 +13,26 @@ defmodule App.Fire do
     field :latitude, :float
     field :longitude, :float
     field :point, Geo.PostGIS.Geometry
-    
+
     # NASA identifiers & metadata
     field :satellite, :string
     field :instrument, :string
     field :version, :string
-    
+
     # Detection details
     field :detected_at, :utc_datetime
     field :confidence, :string
     field :daynight, :string
-    
+
     # Fire intensity data
     field :bright_ti4, :float
     field :bright_ti5, :float
     field :frp, :float
-    
+
     # Pixel quality
     field :scan, :float
     field :track, :float
-    
+
     # Deduplication key
     field :nasa_id, :string
 
@@ -41,9 +42,20 @@ defmodule App.Fire do
   def changeset(fire, attrs) do
     fire
     |> cast(attrs, [
-      :latitude, :longitude, :satellite, :instrument, :version,
-      :detected_at, :confidence, :daynight, :bright_ti4, :bright_ti5,
-      :frp, :scan, :track, :nasa_id
+      :latitude,
+      :longitude,
+      :satellite,
+      :instrument,
+      :version,
+      :detected_at,
+      :confidence,
+      :daynight,
+      :bright_ti4,
+      :bright_ti5,
+      :frp,
+      :scan,
+      :track,
+      :nasa_id
     ])
     |> cast_nasa_numeric_fields(attrs)
     |> validate_required([:latitude, :longitude, :detected_at, :confidence, :satellite])
@@ -67,14 +79,16 @@ defmodule App.Fire do
 
   defp maybe_cast_float(changeset, field, attrs) do
     field_str = to_string(field)
-    
+
     case Map.get(attrs, field_str) do
       value when is_binary(value) ->
         case Float.parse(value) do
           {float_val, _} -> put_change(changeset, field, float_val)
           :error -> changeset
         end
-      _ -> changeset
+
+      _ ->
+        changeset
     end
   end
 
@@ -97,11 +111,12 @@ defmodule App.Fire do
   defp maybe_create_point(changeset) do
     latitude = get_field(changeset, :latitude) || get_change(changeset, :latitude)
     longitude = get_field(changeset, :longitude) || get_change(changeset, :longitude)
-    
+
     case {latitude, longitude} do
       {lat, lng} when is_number(lat) and is_number(lng) ->
         point = %Geo.Point{coordinates: {lng, lat}, srid: 4326}
         put_change(changeset, :point, point)
+
       _ ->
         changeset
     end
@@ -112,10 +127,10 @@ defmodule App.Fire do
     time_str = String.pad_leading(to_string(acq_time), 4, "0")
     hour = String.slice(time_str, 0, 2)
     minute = String.slice(time_str, 2, 2)
-    
+
     # Create ISO datetime string
     datetime_str = "#{acq_date}T#{hour}:#{minute}:00Z"
-    
+
     case DateTime.from_iso8601(datetime_str) do
       {:ok, datetime, 0} -> {:ok, datetime}
       {:error, reason} -> {:error, reason}
@@ -128,17 +143,18 @@ defmodule App.Fire do
     date = nasa_data["acq_date"]
     time = nasa_data["acq_time"]
     satellite = nasa_data["satellite"]
-    
+
     "#{lat}_#{lng}_#{date}_#{time}_#{satellite}"
   end
 
   def create_from_nasa_data(nasa_data) do
     with {:ok, detected_at} <- parse_nasa_datetime(nasa_data["acq_date"], nasa_data["acq_time"]) do
-      attrs = Map.merge(nasa_data, %{
-        "detected_at" => detected_at,
-        "nasa_id" => generate_nasa_id(nasa_data)
-      })
-      
+      attrs =
+        Map.merge(nasa_data, %{
+          "detected_at" => detected_at,
+          "nasa_id" => generate_nasa_id(nasa_data)
+        })
+
       %__MODULE__{}
       |> changeset(attrs)
       |> App.Repo.insert()
@@ -147,7 +163,7 @@ defmodule App.Fire do
 
   def high_quality?(fire) do
     fire.confidence in ["n", "h"] and
-    fire.frp >= 5.0
+      fire.frp >= 5.0
   end
 
   def recent_fires(hours_back), do: recent_fires(hours_back, [])
@@ -207,7 +223,17 @@ defmodule App.Fire do
     location_condition =
       Enum.reduce(locations, nil, fn loc, acc ->
         loc_point = %Geo.Point{coordinates: {loc.longitude, loc.latitude}, srid: 4326}
-        cond_expr = dynamic([f], fragment("ST_DWithin(ST_Transform(?, 3857), ST_Transform(?, 3857), ?)", f.point, ^loc_point, ^loc.radius))
+
+        cond_expr =
+          dynamic(
+            [f],
+            fragment(
+              "ST_DWithin(ST_Transform(?, 3857), ST_Transform(?, 3857), ?)",
+              f.point,
+              ^loc_point,
+              ^loc.radius
+            )
+          )
 
         if acc do
           dynamic([f], ^acc or ^cond_expr)
@@ -226,42 +252,50 @@ defmodule App.Fire do
     App.Repo.all(query)
   end
 
-
   def near_location(latitude, longitude, radius_meters) do
     # Fast bounding box pre-filter to reduce candidates
-    lat_offset = radius_meters / 111_000.0  # ~111km per degree latitude
+    # ~111km per degree latitude
+    lat_offset = radius_meters / 111_000.0
     lng_offset = radius_meters / (111_000.0 * :math.cos(latitude * :math.pi() / 180))
-    
+
     location_point = %Geo.Point{coordinates: {longitude, latitude}, srid: 4326}
-    
+
     __MODULE__
     |> where([f], f.latitude >= ^(latitude - lat_offset))
-    |> where([f], f.latitude <= ^(latitude + lat_offset))  
+    |> where([f], f.latitude <= ^(latitude + lat_offset))
     |> where([f], f.longitude >= ^(longitude - lng_offset))
     |> where([f], f.longitude <= ^(longitude + lng_offset))
-    |> where([f], fragment("ST_DWithin(ST_Transform(?, 3857), ST_Transform(?, 3857), ?)", 
-                          f.point, ^location_point, ^radius_meters))
+    |> where(
+      [f],
+      fragment(
+        "ST_DWithin(ST_Transform(?, 3857), ST_Transform(?, 3857), ?)",
+        f.point,
+        ^location_point,
+        ^radius_meters
+      )
+    )
     |> App.Repo.all()
   end
 
   def cleanup_old(days_back) do
     cutoff = DateTime.utc_now() |> DateTime.add(-days_back, :day)
-    
+
     __MODULE__
     |> where([f], f.detected_at < ^cutoff)
     |> App.Repo.delete_all()
   end
 
   def bulk_insert(nasa_data_list) do
-    processed_data = 
+    processed_data =
       nasa_data_list
       |> Enum.map(&process_nasa_data_for_insert/1)
       |> Enum.reject(&is_nil/1)
-    
+
     # PostgreSQL has a parameter limit of 65535
     # With 18 fields per fire: 65535 ÷ 18 ≈ 3640 fires per batch
-    batch_size = 3000  # Safe batch size
-    
+    # Safe batch size
+    batch_size = 3000
+
     processed_data
     |> Enum.chunk_every(batch_size)
     |> Enum.reduce({0, nil}, fn batch, {total_count, _} ->
@@ -274,7 +308,7 @@ defmodule App.Fire do
     with {:ok, detected_at} <- parse_nasa_datetime(nasa_data["acq_date"], nasa_data["acq_time"]) do
       lat = nasa_data["latitude"]
       lng = nasa_data["longitude"]
-      
+
       %{
         id: Ecto.UUID.generate(),
         latitude: lat,

@@ -5,17 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
     <.live_title suffix=" · Phoenix Framework">
-      <%= assigns[:page_title] || "App" %>
+      {assigns[:page_title] || "App"}
     </.live_title>
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-gesture-handling/dist/leaflet-gesture-handling.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet-gesture-handling"></script>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet-gesture-handling/dist/leaflet-gesture-handling.css"
+    />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+    </script>
+    <script src="https://unpkg.com/leaflet-gesture-handling">
+    </script>
     <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
     </script>
   </head>
   <body class="bg-zinc-50 dark:bg-zinc-900 dark:text-zinc-100 antialiased min-h-screen">
-    <%= @inner_content %>
+    {@inner_content}
   </body>
 </html>

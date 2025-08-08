@@ -11,6 +11,3 @@ defmodule AppWeb.ObanResolver do
     Oban.Web.Resolver.format_job_args(%Oban.Job{args: args})
   end
 end
-
-
-

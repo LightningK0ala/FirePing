@@ -34,14 +34,15 @@ defmodule AppWeb.Router do
 
     import Phoenix.LiveDashboard.Router
     import Oban.Web.Router
-    
-    live_dashboard "/admin/dashboard", 
+
+    live_dashboard "/admin/dashboard",
       metrics: AppWeb.Telemetry,
       on_mount: [{AppWeb.Live.Auth, :require_admin}]
-    
-    oban_dashboard "/admin/oban",
+
+    oban_dashboard("/admin/oban",
       on_mount: [{AppWeb.Live.Auth, :require_admin}],
       resolver: AppWeb.ObanResolver
+    )
   end
 
   # Other scopes may use custom stacks.

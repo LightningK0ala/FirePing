@@ -9,6 +9,7 @@ import Config
 
 # Load .env file if it exists (check parent directory)
 env_file = Path.join([__DIR__, "..", "..", ".env"])
+
 if File.exists?(env_file) do
   env_file
   |> File.read!()
@@ -19,7 +20,9 @@ if File.exists?(env_file) do
         if not String.starts_with?(key, "#") do
           System.put_env(String.trim(key), String.trim(value))
         end
-      _ -> :ok
+
+      _ ->
+        :ok
     end
   end)
 end
@@ -73,10 +76,13 @@ config :phoenix, :json_library, Jason
 config :app, Oban,
   repo: App.Repo,
   plugins: [
-    {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7}, # Keep jobs for 1 week
-    {Oban.Plugins.Cron, crontab: [
-      {"*/10 * * * *", App.Workers.FireFetch} # Every 10 minutes (NASA recommendation)
-    ]}
+    # Keep jobs for 1 week
+    {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
+    {Oban.Plugins.Cron,
+     crontab: [
+       # Every 10 minutes (NASA recommendation)
+       {"*/10 * * * *", App.Workers.FireFetch}
+     ]}
   ],
   queues: [default: 10]
 

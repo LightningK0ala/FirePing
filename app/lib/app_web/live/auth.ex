@@ -12,9 +12,10 @@ defmodule AppWeb.Live.Auth do
 
   def on_mount(:require_authenticated_user, _params, %{"user_id" => user_id} = _session, socket) do
     case App.Repo.get(User, user_id) do
-      %User{} = user -> 
+      %User{} = user ->
         {:cont, assign(socket, :current_user, user)}
-      nil -> 
+
+      nil ->
         # Clear invalid session and redirect
         socket = put_flash(socket, :error, "Session expired. Please log in again.")
         {:halt, redirect(socket, to: "/session/logout")}
@@ -25,7 +26,12 @@ defmodule AppWeb.Live.Auth do
     {:halt, redirect(socket, to: "/login")}
   end
 
-  def on_mount(:redirect_if_user_is_authenticated, _params, %{"user_id" => user_id} = _session, socket) do
+  def on_mount(
+        :redirect_if_user_is_authenticated,
+        _params,
+        %{"user_id" => user_id} = _session,
+        socket
+      ) do
     if user_id do
       {:halt, redirect(socket, to: "/dashboard")}
     else
@@ -39,12 +45,14 @@ defmodule AppWeb.Live.Auth do
 
   def on_mount(:require_admin, _params, %{"user_id" => user_id} = _session, socket) do
     case App.Repo.get(User, user_id) do
-      %User{admin: true} = user -> 
+      %User{admin: true} = user ->
         {:cont, assign(socket, :current_user, user)}
-      %User{admin: false} -> 
+
+      %User{admin: false} ->
         socket = put_flash(socket, :error, "Access denied. Admin privileges required.")
         {:halt, redirect(socket, to: "/dashboard")}
-      nil -> 
+
+      nil ->
         socket = put_flash(socket, :error, "Session expired. Please log in again.")
         {:halt, redirect(socket, to: "/session/logout")}
     end

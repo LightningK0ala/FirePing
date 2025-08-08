@@ -39,7 +39,7 @@ defmodule App.UserTest do
     test "generates OTP token and expiry" do
       user = %User{email: "test@example.com"}
       changeset = User.generate_otp_changeset(user)
-      
+
       assert changeset.changes.otp_token
       assert String.length(changeset.changes.otp_token) == 6
       assert String.match?(changeset.changes.otp_token, ~r/^\d{6}$/)
@@ -53,9 +53,10 @@ defmodule App.UserTest do
       user = %User{
         email: "test@example.com",
         otp_token: "123456",
-        otp_expires_at: DateTime.utc_now() |> DateTime.add(10, :minute) |> DateTime.truncate(:second)
+        otp_expires_at:
+          DateTime.utc_now() |> DateTime.add(10, :minute) |> DateTime.truncate(:second)
       }
-      
+
       changeset = User.verify_otp_changeset(user, "123456")
       assert changeset.valid?
       assert changeset.changes.otp_token == nil
@@ -67,9 +68,10 @@ defmodule App.UserTest do
       user = %User{
         email: "test@example.com",
         otp_token: "123456",
-        otp_expires_at: DateTime.utc_now() |> DateTime.add(10, :minute) |> DateTime.truncate(:second)
+        otp_expires_at:
+          DateTime.utc_now() |> DateTime.add(10, :minute) |> DateTime.truncate(:second)
       }
-      
+
       changeset = User.verify_otp_changeset(user, "wrong")
       refute changeset.valid?
       assert "invalid or expired" in errors_on(changeset).otp_token
@@ -79,9 +81,10 @@ defmodule App.UserTest do
       user = %User{
         email: "test@example.com",
         otp_token: "123456",
-        otp_expires_at: DateTime.utc_now() |> DateTime.add(-10, :minute) |> DateTime.truncate(:second)
+        otp_expires_at:
+          DateTime.utc_now() |> DateTime.add(-10, :minute) |> DateTime.truncate(:second)
       }
-      
+
       changeset = User.verify_otp_changeset(user, "123456")
       refute changeset.valid?
       assert "invalid or expired" in errors_on(changeset).otp_token
@@ -115,7 +118,7 @@ defmodule App.UserTest do
     test "persists admin flag in database" do
       {:ok, user} = User.create_or_get_user("admin@example.com")
       user = App.Repo.update!(Ecto.Changeset.change(user, admin: true))
-      
+
       # Reload from database
       reloaded_user = App.Repo.get!(User, user.id)
       assert reloaded_user.admin
@@ -143,12 +146,14 @@ defmodule App.UserTest do
 
   describe "authenticate_user/2" do
     test "successfully authenticates user with valid OTP" do
-      _user = insert(:user, 
-        email: "test@example.com",
-        otp_token: "123456",
-        otp_expires_at: DateTime.utc_now() |> DateTime.add(10, :minute) |> DateTime.truncate(:second)
-      )
-      
+      _user =
+        insert(:user,
+          email: "test@example.com",
+          otp_token: "123456",
+          otp_expires_at:
+            DateTime.utc_now() |> DateTime.add(10, :minute) |> DateTime.truncate(:second)
+        )
+
       {:ok, authenticated_user} = User.authenticate_user("test@example.com", "123456")
       assert authenticated_user.verified_at
       assert authenticated_user.otp_token == nil
@@ -159,12 +164,13 @@ defmodule App.UserTest do
     end
 
     test "returns error for invalid OTP" do
-      insert(:user, 
+      insert(:user,
         email: "test@example.com",
         otp_token: "123456",
-        otp_expires_at: DateTime.utc_now() |> DateTime.add(10, :minute) |> DateTime.truncate(:second)
+        otp_expires_at:
+          DateTime.utc_now() |> DateTime.add(10, :minute) |> DateTime.truncate(:second)
       )
-      
+
       {:error, changeset} = User.authenticate_user("test@example.com", "wrong")
       refute changeset.valid?
     end

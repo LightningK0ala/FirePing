@@ -5,7 +5,15 @@ defmodule AppWeb.DashboardLiveTest do
 
   test "user can edit a location inline", %{conn: conn} do
     user = insert(:user)
-    location = insert(:location, user: user, name: "Home", latitude: 40.7128, longitude: -74.0060, radius: 5000)
+
+    location =
+      insert(:location,
+        user: user,
+        name: "Home",
+        latitude: 40.7128,
+        longitude: -74.0060,
+        radius: 5000
+      )
 
     conn = Plug.Test.init_test_session(conn, user_id: user.id)
 
@@ -37,4 +45,3 @@ defmodule AppWeb.DashboardLiveTest do
     assert html =~ "8000"
   end
 end
-

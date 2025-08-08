@@ -33,17 +33,22 @@ defmodule App.User do
   def generate_otp_changeset(user) do
     otp_token = generate_otp_token()
     expires_at = DateTime.utc_now() |> DateTime.add(15, :minute) |> DateTime.truncate(:second)
-    
+
     user
     |> change(%{otp_token: otp_token, otp_expires_at: expires_at})
   end
 
   def verify_otp_changeset(user, token) do
     case valid_otp?(user, token) do
-      true -> 
+      true ->
         user
-        |> change(%{otp_token: nil, otp_expires_at: nil, verified_at: DateTime.utc_now() |> DateTime.truncate(:second)})
-      false -> 
+        |> change(%{
+          otp_token: nil,
+          otp_expires_at: nil,
+          verified_at: DateTime.utc_now() |> DateTime.truncate(:second)
+        })
+
+      false ->
         user
         |> change()
         |> add_error(:otp_token, "invalid or expired")
@@ -54,21 +59,24 @@ defmodule App.User do
 
   def create_or_get_user(email) do
     case App.Repo.get_by(__MODULE__, email: email) do
-      nil -> 
+      nil ->
         %__MODULE__{}
         |> changeset(%{email: email})
         |> App.Repo.insert()
-      user -> 
+
+      user ->
         {:ok, user}
     end
   end
 
   def authenticate_user(email, otp_token) do
     case App.Repo.get_by(__MODULE__, email: email) do
-      nil -> 
+      nil ->
         {:error, :user_not_found}
-      user -> 
+
+      user ->
         changeset = verify_otp_changeset(user, otp_token)
+
         if changeset.valid? do
           App.Repo.update(changeset)
         else
@@ -79,11 +87,11 @@ defmodule App.User do
 
   defp valid_otp?(user, token) do
     user.otp_token == token and
-    !is_nil(user.otp_expires_at) and
-    DateTime.compare(DateTime.utc_now(), user.otp_expires_at) == :lt
+      !is_nil(user.otp_expires_at) and
+      DateTime.compare(DateTime.utc_now(), user.otp_expires_at) == :lt
   end
 
   defp generate_otp_token do
-    100_000 + :rand.uniform(899_999) |> Integer.to_string()
+    (100_000 + :rand.uniform(899_999)) |> Integer.to_string()
   end
 end
