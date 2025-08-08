@@ -20,7 +20,7 @@ services:
       context: ./app
       target: ${DOCKER_TARGET:-dev}
     ports:
-      - "4000:4000"
+      - "${PHOENIX_PORT:-4000}:4000"
     env_file:
       - .env
     environment:
