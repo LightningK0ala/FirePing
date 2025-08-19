@@ -64,7 +64,7 @@ import-fires: ## Import sample NASA FIRMS fire data from CSV
 
 admin-grant: ## Grant admin privileges to user (usage: make admin-grant user@example.com)
 	@if [ -z "$(filter-out $@,$(MAKECMDGOALS))" ]; then echo "Usage: make admin-grant user@example.com"; exit 1; fi
-	docker exec app sh -c 'mix admin.grant $(filter-out $@,$(MAKECMDGOALS))'
+	docker exec app sh -c 'mix deps.get && mix admin.grant $(filter-out $@,$(MAKECMDGOALS))'
 
 admin-revoke: ## Revoke admin privileges from user (usage: make admin-revoke user@example.com)
 	@if [ -z "$(filter-out $@,$(MAKECMDGOALS))" ]; then echo "Usage: make admin-revoke user@example.com"; exit 1; fi

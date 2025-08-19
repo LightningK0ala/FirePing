@@ -3,14 +3,12 @@ services:
     image: postgis/postgis:15-3.3
     environment:
       POSTGRES_DB: app_dev
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -25,7 +23,7 @@ services:
       - .env
     environment:
       - MIX_ENV=${MIX_ENV:-dev}
-      - DATABASE_URL=ecto://postgres:postgres@postgres:5432/app_${MIX_ENV:-dev}
+      - DATABASE_URL=ecto://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/app_${MIX_ENV:-dev}
       - PHX_IP=0.0.0.0
       - PORT=4000
     volumes:
@@ -36,7 +34,7 @@ services:
       postgres:
         condition: service_healthy
     command: ["sh", "-c", "mix setup && mix phx.server"]
-    restart: ${RESTART_POLICY:-no}
+    restart: ${RESTART_POLICY:-always}
 
 volumes:
   postgres_data:
