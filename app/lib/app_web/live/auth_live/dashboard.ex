@@ -148,7 +148,26 @@ defmodule AppWeb.AuthLive.Dashboard do
   end
 
   defp push_data_to_map(socket, locations, fires) do
+    # Use MessagePack for compact fire data transmission
+    compact_fires = App.Fire.to_compact_msgpack(fires)
+
+    case Msgpax.pack(compact_fires) do
+      {:ok, msgpack_iodata} ->
+        # Convert iodata to binary, then encode as base64 for transmission over Phoenix channels
+        msgpack_binary = IO.iodata_to_binary(msgpack_iodata)
+        encoded_fires = Base.encode64(msgpack_binary)
+
+        push_event(socket, "update_map_data", %{
+          locations: locations,
+          fires_msgpack: encoded_fires,
+          fires_count: length(fires)
+        })
+
+      {:error, reason} ->
+        # Fallback to regular JSON if MessagePack fails
+        IO.puts("MessagePack encoding failed: #{inspect(reason)}")
     push_event(socket, "update_map_data", %{locations: locations, fires: fires})
+    end
   end
 
   def render(assigns) do

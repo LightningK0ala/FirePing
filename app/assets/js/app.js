@@ -208,8 +208,14 @@ Hooks.Map = {
       this.updateMapData(locations, processedFires);
     });
 
-    // Initialize with empty locations
+    // Initialize with empty locations and fire cluster
     this.markersLayer = L.layerGroup().addTo(this.map);
+    this.fireCluster = L.markerClusterGroup({
+      maxClusterRadius: 50,
+      spiderfyOnMaxZoom: true,
+      showCoverageOnHover: false,
+      zoomToBoundsOnClick: true,
+    }).addTo(this.map);
 
     // Listen for draft update requests (from slider or external triggers)
     window.addEventListener("fireping:update-draft", () =>
@@ -391,6 +397,7 @@ Hooks.Map = {
   updateMapData(locations, fires) {
     // Clear existing markers and circles
     this.markersLayer.clearLayers();
+    this.fireCluster.clearLayers();
 
     // Add location markers (blue)
     locations.forEach((location) => {
@@ -416,7 +423,7 @@ Hooks.Map = {
       this.markersLayer.addLayer(circle);
     });
 
-    // Add fire markers (red/orange)
+    // Add fire markers to cluster (red/orange)
     fires.forEach((fire) => {
       const lat = Number(fire.latitude);
       const lng = Number(fire.longitude);
@@ -432,7 +439,7 @@ Hooks.Map = {
           ? detectedDate.toLocaleString()
           : "N/A";
 
-      // Fire marker (red)
+      // Fire marker (red) - now added to cluster
       const fireMarker = L.circleMarker(latLng, {
         radius: Math.max(4, Math.min(frp / 5, 12)), // Size based on fire power
         color: "#dc2626",
@@ -448,7 +455,7 @@ Hooks.Map = {
         <strong>Coordinates:</strong> ${lat.toFixed(4)}, ${lng.toFixed(4)}
       `);
 
-      this.markersLayer.addLayer(fireMarker);
+      this.fireCluster.addLayer(fireMarker);
     });
 
     // Set map view based on data
@@ -468,7 +475,13 @@ Hooks.Map = {
       locations.forEach((location) =>
         bounds.extend([location.latitude, location.longitude])
       );
-      fires.forEach((fire) => bounds.extend([fire.latitude, fire.longitude]));
+      fires.forEach((fire) => {
+        const lat = Number(fire.latitude);
+        const lng = Number(fire.longitude);
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          bounds.extend([lat, lng]);
+        }
+      });
 
       if (bounds.isValid()) {
         this.map.fitBounds(bounds, { padding: [50, 50], maxZoom: 14 });

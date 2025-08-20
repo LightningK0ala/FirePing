@@ -203,25 +203,26 @@ defmodule App.Fire do
   def recent_fires(hours_back), do: recent_fires(hours_back, [])
 
   def recent_fires(hours_back, opts) when is_integer(hours_back) and is_list(opts) do
-    cutoff = DateTime.utc_now() |> DateTime.add(-hours_back, :hour)
-    limit_count = Keyword.get(opts, :limit)
-    quality = Keyword.get(opts, :quality, :all)
+    :telemetry.span([:fire, :recent_fires], %{hours_back: hours_back, opts: opts}, fn ->
+      cutoff = DateTime.utc_now() |> DateTime.add(-hours_back, :hour)
+      limit_count = Keyword.get(opts, :limit)
+      quality = Keyword.get(opts, :quality, :all)
 
-    base =
-      __MODULE__
-      |> where([f], f.detected_at >= ^cutoff)
+      base =
+        __MODULE__
+        |> where([f], f.detected_at >= ^cutoff)
 
-    filtered =
-      case quality do
-        :high -> where(base, [f], f.confidence in ["n", "h"] and f.frp >= 5.0)
-        _ -> base
-      end
+      filtered =
+        case quality do
+          :high -> where(base, [f], f.confidence in ["n", "h"] and f.frp >= 5.0)
+          _ -> base
+        end
 
-    query =
-      filtered
-      |> order_by([f], desc: f.detected_at)
+      query =
+        filtered
+        |> order_by([f], desc: f.detected_at)
 
-    query = if is_integer(limit_count), do: limit(query, ^limit_count), else: query
+      query = if is_integer(limit_count), do: limit(query, ^limit_count), else: query
 
       result = App.Repo.all(query)
       {result, %{result_count: length(result)}}
@@ -241,61 +242,66 @@ defmodule App.Fire do
   def recent_fires_near_locations([], _hours_back, _opts), do: []
 
   def recent_fires_near_locations(locations, hours_back, opts) when is_list(locations) do
-    cutoff = DateTime.utc_now() |> DateTime.add(-hours_back, :hour)
-    limit_count = Keyword.get(opts, :limit)
-    quality = Keyword.get(opts, :quality, :all)
+    :telemetry.span(
+      [:fire, :recent_fires_near_locations],
+      %{hours_back: hours_back, opts: opts, location_count: length(locations)},
+      fn ->
+        cutoff = DateTime.utc_now() |> DateTime.add(-hours_back, :hour)
+        limit_count = Keyword.get(opts, :limit)
+        quality = Keyword.get(opts, :quality, :all)
 
-      # Calculate bounding box to pre-filter spatially
-      bounding_box = calculate_bounding_box(locations)
+        # Calculate bounding box to pre-filter spatially
+        bounding_box = calculate_bounding_box(locations)
 
-    base =
-      __MODULE__
-      |> where([f], f.detected_at >= ^cutoff)
-        # Add bounding box pre-filter to reduce spatial candidates
-        |> where([f], f.latitude >= ^bounding_box.min_lat)
-        |> where([f], f.latitude <= ^bounding_box.max_lat)
-        |> where([f], f.longitude >= ^bounding_box.min_lng)
-        |> where([f], f.longitude <= ^bounding_box.max_lng)
+        base =
+          __MODULE__
+          |> where([f], f.detected_at >= ^cutoff)
+          # Add bounding box pre-filter to reduce spatial candidates
+          |> where([f], f.latitude >= ^bounding_box.min_lat)
+          |> where([f], f.latitude <= ^bounding_box.max_lat)
+          |> where([f], f.longitude >= ^bounding_box.min_lng)
+          |> where([f], f.longitude <= ^bounding_box.max_lng)
 
-    filtered =
-      case quality do
-        :high -> where(base, [f], f.confidence in ["n", "h"] and f.frp >= 5.0)
-        _ -> base
+        filtered =
+          case quality do
+            :high -> where(base, [f], f.confidence in ["n", "h"] and f.frp >= 5.0)
+            _ -> base
+          end
+
+        # Build OR of ST_DWithin for each location with its radius
+        location_condition =
+          Enum.reduce(locations, nil, fn loc, acc ->
+            loc_point = %Geo.Point{coordinates: {loc.longitude, loc.latitude}, srid: 4326}
+
+            cond_expr =
+              dynamic(
+                [f],
+                fragment(
+                  "ST_DWithin(ST_Transform(?, 3857), ST_Transform(?, 3857), ?)",
+                  f.point,
+                  ^loc_point,
+                  ^loc.radius
+                )
+              )
+
+            if acc do
+              dynamic([f], ^acc or ^cond_expr)
+            else
+              cond_expr
+            end
+          end)
+
+        query =
+          filtered
+          |> where(^location_condition)
+          |> order_by([f], desc: f.detected_at)
+
+        query = if is_integer(limit_count), do: limit(query, ^limit_count), else: query
+
+        result = App.Repo.all(query)
+        {result, %{result_count: length(result)}}
       end
-
-    # Build OR of ST_DWithin for each location with its radius
-    location_condition =
-      Enum.reduce(locations, nil, fn loc, acc ->
-        loc_point = %Geo.Point{coordinates: {loc.longitude, loc.latitude}, srid: 4326}
-
-        cond_expr =
-          dynamic(
-            [f],
-            fragment(
-              "ST_DWithin(ST_Transform(?, 3857), ST_Transform(?, 3857), ?)",
-              f.point,
-              ^loc_point,
-              ^loc.radius
-            )
-          )
-
-        if acc do
-          dynamic([f], ^acc or ^cond_expr)
-        else
-          cond_expr
-        end
-      end)
-
-    query =
-      filtered
-      |> where(^location_condition)
-      |> order_by([f], desc: f.detected_at)
-
-    query = if is_integer(limit_count), do: limit(query, ^limit_count), else: query
-
-      result = App.Repo.all(query)
-      {result, %{result_count: length(result)}}
-    end)
+    )
   end
 
   def near_location(latitude, longitude, radius_meters) do
@@ -383,10 +389,12 @@ defmodule App.Fire do
   # Calculate bounding box for all locations to pre-filter spatially
   defp calculate_bounding_box(locations) do
     # Add padding to account for the largest radius
-    max_radius_degrees = locations
-    |> Enum.map(& &1.radius)
-    |> Enum.max()
-    |> Kernel./(111_000.0)  # Convert meters to degrees (approximate)
+    max_radius_degrees =
+      locations
+      |> Enum.map(& &1.radius)
+      |> Enum.max()
+      # Convert meters to degrees (approximate)
+      |> Kernel./(111_000.0)
 
     # Find the bounds of all location points
     lats = Enum.map(locations, & &1.latitude)
