@@ -189,7 +189,9 @@ defmodule App.Fire do
 
     query = if is_integer(limit_count), do: limit(query, ^limit_count), else: query
 
-    App.Repo.all(query)
+      result = App.Repo.all(query)
+      {result, %{result_count: length(result)}}
+    end)
   end
 
   @doc """
@@ -209,9 +211,17 @@ defmodule App.Fire do
     limit_count = Keyword.get(opts, :limit)
     quality = Keyword.get(opts, :quality, :all)
 
+      # Calculate bounding box to pre-filter spatially
+      bounding_box = calculate_bounding_box(locations)
+
     base =
       __MODULE__
       |> where([f], f.detected_at >= ^cutoff)
+        # Add bounding box pre-filter to reduce spatial candidates
+        |> where([f], f.latitude >= ^bounding_box.min_lat)
+        |> where([f], f.latitude <= ^bounding_box.max_lat)
+        |> where([f], f.longitude >= ^bounding_box.min_lng)
+        |> where([f], f.longitude <= ^bounding_box.max_lng)
 
     filtered =
       case quality do
@@ -249,7 +259,9 @@ defmodule App.Fire do
 
     query = if is_integer(limit_count), do: limit(query, ^limit_count), else: query
 
-    App.Repo.all(query)
+      result = App.Repo.all(query)
+      {result, %{result_count: length(result)}}
+    end)
   end
 
   def near_location(latitude, longitude, radius_meters) do
@@ -332,5 +344,25 @@ defmodule App.Fire do
     else
       _ -> nil
     end
+  end
+
+  # Calculate bounding box for all locations to pre-filter spatially
+  defp calculate_bounding_box(locations) do
+    # Add padding to account for the largest radius
+    max_radius_degrees = locations
+    |> Enum.map(& &1.radius)
+    |> Enum.max()
+    |> Kernel./(111_000.0)  # Convert meters to degrees (approximate)
+
+    # Find the bounds of all location points
+    lats = Enum.map(locations, & &1.latitude)
+    lngs = Enum.map(locations, & &1.longitude)
+
+    %{
+      min_lat: Enum.min(lats) - max_radius_degrees,
+      max_lat: Enum.max(lats) + max_radius_degrees,
+      min_lng: Enum.min(lngs) - max_radius_degrees,
+      max_lng: Enum.max(lngs) + max_radius_degrees
+    }
   end
 end

@@ -4,6 +4,7 @@ help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 setup: ## Initial project setup (deps, create DB, migrate, hooks)
+	make up
 	docker compose exec app sh -c 'mix setup'
 	@echo "Setting up Git hooks..."
 	@./scripts/setup-hooks.sh
@@ -56,8 +57,13 @@ db-down: ## Stop database container
 	docker compose down
 
 db-reset: ## Reset database (drop, create, migrate) for both dev and test
-	docker compose exec app sh -c 'mix ecto.drop && mix ecto.create && mix ecto.migrate'
-	docker compose exec app sh -c 'MIX_ENV=test mix ecto.drop && MIX_ENV=test mix ecto.create && MIX_ENV=test mix ecto.migrate'
+	docker compose stop app
+	docker compose exec postgres psql -U postgres -c "DROP DATABASE IF EXISTS app_dev;"
+	docker compose exec postgres psql -U postgres -c "DROP DATABASE IF EXISTS app_test;"
+	docker compose start app
+	docker compose exec app sh -c 'mix ecto.create && mix ecto.migrate'
+	docker compose exec app sh -c 'MIX_ENV=test mix ecto.create && MIX_ENV=test mix ecto.migrate'
+	docker compose exec app sh -c 'mix setup'
 
 db-seed: ## Run database seeds
 	docker compose exec app sh -c 'mix run priv/repo/seeds.exs'

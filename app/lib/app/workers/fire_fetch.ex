@@ -14,8 +14,8 @@ defmodule App.Workers.FireFetch do
 
   @nasa_base_url "https://firms.modaps.eosdis.nasa.gov/api"
   @user_agent "FirePing/1.0 (https://github.com/yourorg/fireping)"
-  # 30 seconds
-  @timeout 30_000
+  # 90 seconds
+  @timeout 90_000
 
   defp api_key do
     System.get_env("NASA_FIRMS_API_KEY") || "your_key_here"
