@@ -21,7 +21,7 @@ import "phoenix_html";
 import { Socket } from "phoenix";
 import { LiveSocket } from "phoenix_live_view";
 import topbar from "../vendor/topbar";
-// Leaflet will be loaded from CDN
+// Leaflet and MessagePack will be loaded from CDN
 
 // Auto-dismiss flash messages
 let Hooks = {};
@@ -169,8 +169,43 @@ Hooks.Map = {
     }).addTo(this.map);
 
     // Handle map data updates from LiveView
-    this.handleEvent("update_map_data", ({ locations, fires }) => {
-      this.updateMapData(locations, fires);
+    this.handleEvent("update_map_data", (data) => {
+      const { locations, fires, fires_msgpack, fires_count } = data;
+
+      let processedFires = fires;
+
+      // If we have MessagePack fires data, decode it
+      if (fires_msgpack && window.MessagePack) {
+        try {
+          // Decode base64 then MessagePack
+          const binaryData = Uint8Array.from(atob(fires_msgpack), (c) =>
+            c.charCodeAt(0)
+          );
+          const decodedData = window.MessagePack.decode(binaryData);
+
+          // Convert compact array format back to objects
+          processedFires = this.convertCompactFiresToObjects(decodedData);
+
+          console.log(
+            `🔥 Decoded ${processedFires.length} fires from MessagePack (${
+              binaryData.length
+            } bytes vs ~${
+              JSON.stringify(processedFires).length
+            } bytes uncompressed)`
+          );
+        } catch (error) {
+          console.error("Failed to decode MessagePack fires data:", error);
+          // Fallback to regular fires data if available
+          processedFires = fires || [];
+        }
+      } else if (fires_msgpack && !window.MessagePack) {
+        console.warn(
+          "MessagePack library not loaded, falling back to regular fires data"
+        );
+        processedFires = fires || [];
+      }
+
+      this.updateMapData(locations, processedFires);
     });
 
     // Initialize with empty locations
@@ -313,6 +348,44 @@ Hooks.Map = {
     }, 100);
     // Re-attach edit listeners if editing id changed
     this.attachEditListeners && this.attachEditListeners();
+  },
+
+  convertCompactFiresToObjects(compactData) {
+    // Convert compact MessagePack format back to object format
+    // Expected format: { format: "compact_v1", fields: ["lat", "lng", "timestamp", "confidence", "frp", "satellite"], data: [[...], [...]] }
+
+    if (
+      !compactData ||
+      compactData.format !== "compact_v1" ||
+      !compactData.data
+    ) {
+      console.warn("Invalid compact fire data format:", compactData);
+      return [];
+    }
+
+    const fields = compactData.fields || [
+      "lat",
+      "lng",
+      "timestamp",
+      "confidence",
+      "frp",
+      "satellite",
+    ];
+
+    return compactData.data.map((fireArray) => {
+      const fireObj = {};
+      fields.forEach((field, index) => {
+        if (field === "lat") fireObj.latitude = fireArray[index];
+        else if (field === "lng") fireObj.longitude = fireArray[index];
+        else if (field === "timestamp") {
+          // Convert Unix timestamp back to ISO date string
+          fireObj.detected_at = new Date(fireArray[index] * 1000).toISOString();
+        } else {
+          fireObj[field] = fireArray[index];
+        }
+      });
+      return fireObj;
+    });
   },
 
   updateMapData(locations, fires) {

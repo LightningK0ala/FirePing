@@ -4,7 +4,7 @@ defmodule App.Fire do
   import Ecto.Query
 
   @derive {Jason.Encoder,
-           only: [:id, :latitude, :longitude, :detected_at, :confidence, :frp, :satellite]}
+           only: [:latitude, :longitude, :detected_at, :confidence, :frp, :satellite]}
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
 
@@ -164,6 +164,40 @@ defmodule App.Fire do
   def high_quality?(fire) do
     fire.confidence in ["n", "h"] and
       fire.frp >= 5.0
+  end
+
+  @doc """
+  Returns a compact representation of fire data for frontend consumption.
+  Uses arrays instead of objects to minimize payload size.
+  Format: [lat, lng, unix_timestamp, confidence, frp, satellite]
+  """
+  def to_compact_array(fire) do
+    unix_timestamp = DateTime.to_unix(fire.detected_at)
+
+    [
+      fire.latitude,
+      fire.longitude,
+      unix_timestamp,
+      fire.confidence,
+      fire.frp,
+      fire.satellite
+    ]
+  end
+
+  @doc """
+  Converts a list of fires to a compact MessagePack-optimized format.
+  Returns a map with metadata and compact fire data arrays.
+  """
+  def to_compact_msgpack(fires) when is_list(fires) do
+    compact_fires = Enum.map(fires, &to_compact_array/1)
+
+    %{
+      # Metadata for frontend to understand the array format
+      format: "compact_v1",
+      fields: ["lat", "lng", "timestamp", "confidence", "frp", "satellite"],
+      count: length(fires),
+      data: compact_fires
+    }
   end
 
   def recent_fires(hours_back), do: recent_fires(hours_back, [])

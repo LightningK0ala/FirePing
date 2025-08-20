@@ -64,6 +64,7 @@ defmodule App.MixProject do
       {:csv, "~> 3.2"},
       {:httpoison, "~> 2.0"},
       {:dotenv_parser, "~> 2.0"},
+      {:msgpax, "~> 2.4"},
       {:lazy_html, ">= 0.1.0", only: :test}
     ]
   end
