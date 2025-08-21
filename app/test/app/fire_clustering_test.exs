@@ -298,4 +298,197 @@ defmodule App.FireClusteringTest do
       assert updated_fire.fire_incident_id == incident.id
     end
   end
+
+  describe "process_unassigned_fires/1" do
+    test "returns {0, []} when no unassigned fires exist" do
+      # Create some fires that are already assigned
+      fire1 = insert(:fire)
+      incident = insert(:fire_incident)
+      Fire.update_fire_incident(fire1, incident.id)
+
+      assert {0, []} = Fire.process_unassigned_fires()
+    end
+
+    test "assigns unassigned fires to new incidents when no nearby incidents exist" do
+      # Create unassigned fires far apart
+      fire1 = insert(:fire, %{
+        latitude: 37.7749,
+        longitude: -122.4194,
+        fire_incident_id: nil
+      })
+      
+      fire2 = insert(:fire, %{
+        latitude: 38.0000,
+        longitude: -123.0000,
+        fire_incident_id: nil
+      })
+
+      assert {2, []} = Fire.process_unassigned_fires()
+
+      # Reload fires from database
+      updated_fire1 = App.Repo.get!(Fire, fire1.id)
+      updated_fire2 = App.Repo.get!(Fire, fire2.id)
+
+      # Both should now be assigned to incidents
+      assert updated_fire1.fire_incident_id != nil
+      assert updated_fire2.fire_incident_id != nil
+      
+      # Should be different incidents since they're far apart
+      assert updated_fire1.fire_incident_id != updated_fire2.fire_incident_id
+    end
+
+    test "assigns unassigned fires to existing incidents when nearby fires exist" do
+      # Create a fire with an existing incident
+      existing_fire = insert(:fire, %{
+        latitude: 37.7749,
+        longitude: -122.4194,
+        detected_at: DateTime.utc_now() |> DateTime.add(-1, :hour)
+      })
+      
+      existing_incident = insert(:fire_incident)
+      Fire.update_fire_incident(existing_fire, existing_incident.id)
+
+      # Create an unassigned fire very close to the existing one
+      unassigned_fire = insert(:fire, %{
+        latitude: 37.7750,
+        longitude: -122.4195,
+        fire_incident_id: nil
+      })
+
+      assert {1, []} = Fire.process_unassigned_fires()
+
+      # Reload the unassigned fire
+      updated_fire = App.Repo.get!(Fire, unassigned_fire.id)
+
+      # Should be assigned to the existing incident
+      assert updated_fire.fire_incident_id == existing_incident.id
+    end
+
+    test "respects custom clustering distance parameter" do
+      # Create a fire with an existing incident
+      existing_fire = insert(:fire, %{
+        latitude: 37.0000,
+        longitude: -122.0000,
+        detected_at: DateTime.utc_now() |> DateTime.add(-1, :hour)
+      })
+      
+      existing_incident = insert(:fire_incident)
+      Fire.update_fire_incident(existing_fire, existing_incident.id)
+
+      # Create an unassigned fire 2km away
+      unassigned_fire = insert(:fire, %{
+        latitude: 37.0180,  # ~2km north
+        longitude: -122.0000,
+        fire_incident_id: nil
+      })
+
+      # With 1km clustering distance, should create new incident
+      assert {1, []} = Fire.process_unassigned_fires(clustering_distance: 1000)
+      
+      updated_fire = App.Repo.get!(Fire, unassigned_fire.id)
+      assert updated_fire.fire_incident_id != existing_incident.id
+
+      # Reset fire to unassigned
+      Fire.update_fire_incident(updated_fire, nil)
+
+      # With 5km clustering distance, should join existing incident
+      assert {1, []} = Fire.process_unassigned_fires(clustering_distance: 5000)
+      
+      updated_fire = App.Repo.get!(Fire, unassigned_fire.id)
+      assert updated_fire.fire_incident_id == existing_incident.id
+    end
+
+    test "respects expiry hours parameter for time-based clustering" do
+      # Create an old fire with an existing incident (older than default 72 hours)
+      old_fire = insert(:fire, %{
+        latitude: 37.7749,
+        longitude: -122.4194,
+        detected_at: DateTime.utc_now() |> DateTime.add(-73, :hour)
+      })
+      
+      old_incident = insert(:fire_incident)
+      Fire.update_fire_incident(old_fire, old_incident.id)
+
+      # Create an unassigned fire close to the old one but recent
+      unassigned_fire = insert(:fire, %{
+        latitude: 37.7750,
+        longitude: -122.4195,
+        fire_incident_id: nil
+      })
+
+      # With default expiry (72 hours), should create new incident since old fire is expired
+      assert {1, []} = Fire.process_unassigned_fires()
+      
+      updated_fire = App.Repo.get!(Fire, unassigned_fire.id)
+      assert updated_fire.fire_incident_id != old_incident.id
+
+      # Reset fire to unassigned
+      Fire.update_fire_incident(updated_fire, nil)
+
+      # With 100 hour expiry, should join the old incident
+      assert {1, []} = Fire.process_unassigned_fires(expiry_hours: 100)
+      
+      updated_fire = App.Repo.get!(Fire, unassigned_fire.id)
+      assert updated_fire.fire_incident_id == old_incident.id
+    end
+
+    test "handles assignment failures gracefully" do
+      # Create a valid unassigned fire
+      unassigned_fire = insert(:fire, %{
+        latitude: 37.7749,
+        longitude: -122.4194,
+        fire_incident_id: nil
+      })
+
+      # The function should successfully process even if there are no nearby incidents
+      # (it will create a new incident)
+      {processed_count, errors} = Fire.process_unassigned_fires()
+      
+      assert processed_count == 1
+      assert length(errors) == 0
+      
+      # Fire should now be assigned to a new incident
+      updated_fire = App.Repo.get!(Fire, unassigned_fire.id)
+      assert updated_fire.fire_incident_id != nil
+    end
+
+    test "processes multiple unassigned fires successfully" do
+      # Create some valid unassigned fires in different locations
+      fire1 = insert(:fire, %{
+        latitude: 37.0000,
+        longitude: -122.0000,
+        fire_incident_id: nil
+      })
+      
+      fire2 = insert(:fire, %{
+        latitude: 38.0000,
+        longitude: -123.0000,
+        fire_incident_id: nil
+      })
+
+      fire3 = insert(:fire, %{
+        latitude: 39.0000,
+        longitude: -124.0000,
+        fire_incident_id: nil
+      })
+
+      {processed_count, errors} = Fire.process_unassigned_fires()
+      
+      assert processed_count == 3
+      assert length(errors) == 0  # All fires should process successfully
+      
+      # All fires should be assigned to incidents
+      updated_fire1 = App.Repo.get!(Fire, fire1.id)
+      updated_fire2 = App.Repo.get!(Fire, fire2.id)
+      updated_fire3 = App.Repo.get!(Fire, fire3.id)
+      
+      assert updated_fire1.fire_incident_id != nil
+      assert updated_fire2.fire_incident_id != nil
+      assert updated_fire3.fire_incident_id != nil
+      
+      # Since they're far apart, they should be in different incidents
+      incident_ids = [updated_fire1.fire_incident_id, updated_fire2.fire_incident_id, updated_fire3.fire_incident_id]
+      assert length(Enum.uniq(incident_ids)) == 3
+    end
+  end
 end

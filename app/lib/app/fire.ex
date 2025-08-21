@@ -570,4 +570,50 @@ defmodule App.Fire do
       max_lng: Enum.max(lngs) + max_radius_degrees
     }
   end
+
+  @doc """
+  Processes all unassigned fires (where fire_incident_id is nil) and attempts to assign them to incidents.
+  Returns a tuple with the count of fires processed and any errors encountered.
+  """
+  def process_unassigned_fires(opts \\ []) do
+    clustering_distance = Keyword.get(opts, :clustering_distance, 5000)
+    expiry_hours = Keyword.get(opts, :expiry_hours, 72)
+
+    # Find all unassigned fires
+    unassigned_fires = 
+      __MODULE__
+      |> where([f], is_nil(f.fire_incident_id))
+      |> App.Repo.all()
+
+    if length(unassigned_fires) == 0 do
+      {0, []}
+    else
+      # Process each unassigned fire for clustering (sequentially to ensure proper clustering)
+      clustering_results =
+        unassigned_fires
+        |> Enum.reduce([], fn fire, acc ->
+          result = App.Repo.transaction(fn ->
+            case assign_to_incident(fire, clustering_distance, expiry_hours) do
+              {:ok, _} -> :ok
+              {:error, reason} -> App.Repo.rollback({:error, fire.id, reason})
+            end
+          end)
+          
+          case result do
+            {:ok, :ok} -> [:ok | acc]
+            {:error, error_tuple} -> [error_tuple | acc]
+          end
+        end)
+        |> Enum.reverse()
+
+      clustering_errors = Enum.filter(clustering_results, &match?({:error, _, _}, &1))
+
+      if length(clustering_errors) > 0 do
+        require Logger
+        Logger.warning("Some unassigned fires could not be assigned to incidents: #{inspect(clustering_errors)}")
+      end
+
+      {length(unassigned_fires), clustering_errors}
+    end
+  end
 end
