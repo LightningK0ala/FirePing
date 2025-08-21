@@ -406,24 +406,52 @@ defmodule App.Fire do
   """
   def find_incident_for_fire(new_fire, clustering_distance_meters \\ 5000, expiry_hours \\ 72) do
     cutoff = DateTime.utc_now() |> DateTime.add(-expiry_hours, :hour)
-    fire_point = %Geo.Point{coordinates: {new_fire.longitude, new_fire.latitude}, srid: 4326}
+    
+    # Pre-calculate bounding box for much faster initial filtering
+    # ~111km per degree latitude, adjust for longitude by latitude
+    lat_offset = clustering_distance_meters / 111_000.0
+    lng_offset = clustering_distance_meters / (111_000.0 * :math.cos(new_fire.latitude * :math.pi() / 180))
 
-    # Query recent fires within clustering distance
-    __MODULE__
-    |> where([f], f.detected_at >= ^cutoff)
-    |> where([f], not is_nil(f.fire_incident_id))
-    |> where(
-      [f],
-      fragment(
-        "ST_DWithin(ST_Transform(?, 3857), ST_Transform(?, 3857), ?)",
-        f.point,
-        ^fire_point,
-        ^clustering_distance_meters
+    # Get candidates using bounding box (very fast with regular indexes)
+    candidates = 
+      __MODULE__
+      |> where([f], f.detected_at >= ^cutoff)
+      |> where([f], not is_nil(f.fire_incident_id))
+      |> where([f], f.latitude >= ^(new_fire.latitude - lat_offset))
+      |> where([f], f.latitude <= ^(new_fire.latitude + lat_offset))
+      |> where([f], f.longitude >= ^(new_fire.longitude - lng_offset))
+      |> where([f], f.longitude <= ^(new_fire.longitude + lng_offset))
+      |> select([f], %{fire_incident_id: f.fire_incident_id, latitude: f.latitude, longitude: f.longitude})
+      |> App.Repo.all()
+
+    # Filter candidates by actual distance (in memory - much faster for small sets)
+    clustering_distance_degrees = clustering_distance_meters / 111_000.0
+    
+    candidates
+    |> Enum.find(fn candidate ->
+      distance = haversine_distance(
+        new_fire.latitude, new_fire.longitude,
+        candidate.latitude, candidate.longitude
       )
-    )
-    |> select([f], f.fire_incident_id)
-    |> limit(1)
-    |> App.Repo.one()
+      distance <= clustering_distance_degrees
+    end)
+    |> case do
+      nil -> nil
+      candidate -> candidate.fire_incident_id
+    end
+  end
+
+  # Simple haversine distance calculation (returns degrees)
+  defp haversine_distance(lat1, lon1, lat2, lon2) do
+    d_lat = (lat2 - lat1) * :math.pi() / 180
+    d_lon = (lon2 - lon1) * :math.pi() / 180
+    
+    a = :math.sin(d_lat / 2) * :math.sin(d_lat / 2) +
+        :math.cos(lat1 * :math.pi() / 180) * :math.cos(lat2 * :math.pi() / 180) *
+        :math.sin(d_lon / 2) * :math.sin(d_lon / 2)
+    
+    c = 2 * :math.atan2(:math.sqrt(a), :math.sqrt(1 - a))
+    c * 180 / :math.pi()  # Return in degrees
   end
 
   @doc """
@@ -491,8 +519,8 @@ defmodule App.Fire do
 
     # Now assign newly inserted fires to incidents
     if total_inserted > 0 do
-      # Get fires that don't have incident assignments yet, but limit to recently processed ones
-      # to avoid processing all historical unassigned fires
+      # Get fires that don't have incident assignments yet
+      # Use recent cutoff to focus on newly processed fires
       recent_cutoff = DateTime.utc_now() |> DateTime.add(-1, :hour)
       
       unassigned_fires =
@@ -500,7 +528,6 @@ defmodule App.Fire do
         |> where([f], is_nil(f.fire_incident_id))
         |> where([f], f.inserted_at >= ^recent_cutoff)
         |> order_by([f], asc: f.detected_at)
-        |> limit(1000)  # Limit to prevent huge queries
         |> App.Repo.all()
 
       # Process each unassigned fire for clustering

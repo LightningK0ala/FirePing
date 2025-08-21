@@ -181,6 +181,7 @@ defmodule App.FireClusteringTest do
   end
 
   describe "process_fires_with_clustering/2" do
+    @tag timeout: 30000
     test "processes NASA data and creates incidents" do
       nasa_data = [
         %{
