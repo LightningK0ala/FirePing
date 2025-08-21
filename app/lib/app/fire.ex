@@ -407,51 +407,39 @@ defmodule App.Fire do
   def find_incident_for_fire(new_fire, clustering_distance_meters \\ 5000, expiry_hours \\ 72) do
     cutoff = DateTime.utc_now() |> DateTime.add(-expiry_hours, :hour)
     
-    # Pre-calculate bounding box for much faster initial filtering
-    # ~111km per degree latitude, adjust for longitude by latitude
-    lat_offset = clustering_distance_meters / 111_000.0
-    lng_offset = clustering_distance_meters / (111_000.0 * :math.cos(new_fire.latitude * :math.pi() / 180))
-
-    # Get candidates using bounding box (very fast with regular indexes)
-    candidates = 
-      __MODULE__
-      |> where([f], f.detected_at >= ^cutoff)
-      |> where([f], not is_nil(f.fire_incident_id))
-      |> where([f], f.latitude >= ^(new_fire.latitude - lat_offset))
-      |> where([f], f.latitude <= ^(new_fire.latitude + lat_offset))
-      |> where([f], f.longitude >= ^(new_fire.longitude - lng_offset))
-      |> where([f], f.longitude <= ^(new_fire.longitude + lng_offset))
-      |> select([f], %{fire_incident_id: f.fire_incident_id, latitude: f.latitude, longitude: f.longitude})
-      |> App.Repo.all()
-
-    # Filter candidates by actual distance (in memory - much faster for small sets)
-    clustering_distance_degrees = clustering_distance_meters / 111_000.0
+    # Create a pseudo-location for the new fire to reuse existing bounding box logic
+    pseudo_location = %{
+      latitude: new_fire.latitude,
+      longitude: new_fire.longitude,
+      radius: clustering_distance_meters
+    }
     
-    candidates
-    |> Enum.find(fn candidate ->
-      distance = haversine_distance(
-        new_fire.latitude, new_fire.longitude,
-        candidate.latitude, candidate.longitude
+    # Use existing bounding box calculation
+    bounding_box = calculate_bounding_box([pseudo_location])
+    fire_point = %Geo.Point{coordinates: {new_fire.longitude, new_fire.latitude}, srid: 4326}
+
+    # Follow the same pattern as recent_fires_near_locations
+    __MODULE__
+    |> where([f], f.detected_at >= ^cutoff)
+    |> where([f], not is_nil(f.fire_incident_id))
+    # Bounding box pre-filter (fast with regular indexes)
+    |> where([f], f.latitude >= ^bounding_box.min_lat)
+    |> where([f], f.latitude <= ^bounding_box.max_lat)
+    |> where([f], f.longitude >= ^bounding_box.min_lng)
+    |> where([f], f.longitude <= ^bounding_box.max_lng)
+    # Precise spatial filter using PostGIS
+    |> where(
+      [f],
+      fragment(
+        "ST_DWithin(ST_Transform(?, 3857), ST_Transform(?, 3857), ?)",
+        f.point,
+        ^fire_point,
+        ^clustering_distance_meters
       )
-      distance <= clustering_distance_degrees
-    end)
-    |> case do
-      nil -> nil
-      candidate -> candidate.fire_incident_id
-    end
-  end
-
-  # Simple haversine distance calculation (returns degrees)
-  defp haversine_distance(lat1, lon1, lat2, lon2) do
-    d_lat = (lat2 - lat1) * :math.pi() / 180
-    d_lon = (lon2 - lon1) * :math.pi() / 180
-    
-    a = :math.sin(d_lat / 2) * :math.sin(d_lat / 2) +
-        :math.cos(lat1 * :math.pi() / 180) * :math.cos(lat2 * :math.pi() / 180) *
-        :math.sin(d_lon / 2) * :math.sin(d_lon / 2)
-    
-    c = 2 * :math.atan2(:math.sqrt(a), :math.sqrt(1 - a))
-    c * 180 / :math.pi()  # Return in degrees
+    )
+    |> select([f], f.fire_incident_id)
+    |> limit(1)
+    |> App.Repo.one()
   end
 
   @doc """
