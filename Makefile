@@ -22,7 +22,7 @@ build: ## Build and start all services with Docker Compose
 	docker compose up -d --build
 
 logs: ## Show logs from all Docker services
-	docker compose logs -f
+	docker compose logs --tail 50 -f
 
 dev: ## Start Phoenix development server with Docker
 	docker compose up

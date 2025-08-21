@@ -24,6 +24,10 @@ defmodule Mix.Tasks.Stats do
     total_fires = Repo.aggregate(Fire, :count)
     Mix.shell().info("📊 Total fire records: #{total_fires}")
 
+    # Unassigned fires
+    unassigned_fires = Fire |> where([f], is_nil(f.fire_incident_id)) |> Repo.aggregate(:count)
+    Mix.shell().info("🌋 Unassigned fires: #{unassigned_fires}")
+
     # Total fire incidents
     total_incidents = Repo.aggregate(FireIncident, :count)
     Mix.shell().info("🔥 Total fire incidents: #{total_incidents}")
