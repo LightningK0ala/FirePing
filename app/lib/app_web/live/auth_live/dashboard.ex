@@ -166,7 +166,7 @@ defmodule AppWeb.AuthLive.Dashboard do
       {:error, reason} ->
         # Fallback to regular JSON if MessagePack fails
         IO.puts("MessagePack encoding failed: #{inspect(reason)}")
-    push_event(socket, "update_map_data", %{locations: locations, fires: fires})
+        push_event(socket, "update_map_data", %{locations: locations, fires: fires})
     end
   end
 
