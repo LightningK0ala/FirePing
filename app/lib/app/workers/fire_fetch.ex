@@ -64,6 +64,16 @@ defmodule App.Workers.FireFetch do
           metadata: metadata
         )
 
+        # Enqueue fire clustering job if we inserted new fires
+        if total_fires > 0 do
+          case App.Workers.FireClustering.enqueue_now() do
+            {:ok, clustering_job} ->
+              Logger.info("FireFetch: Enqueued fire clustering job", clustering_job_id: clustering_job.id)
+            {:error, reason} ->
+              Logger.warning("FireFetch: Failed to enqueue fire clustering job", reason: inspect(reason))
+          end
+        end
+
         :ok
 
       {:error, reason} ->

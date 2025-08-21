@@ -105,6 +105,15 @@ stats: ## Show basic database statistics
 fire-test: ## Test FireFetch logic synchronously with detailed logging
 	docker compose exec app sh -c 'mix fire_test'
 
+fire-cluster: ## Manually trigger fire clustering job (usage: make fire-cluster or make fire-cluster distance=3000 expiry=48)
+	@if [ -n "$(distance)" ] && [ -n "$(expiry)" ]; then \
+		docker compose exec app sh -c 'mix fire_cluster $(distance) $(expiry)'; \
+	elif [ -n "$(distance)" ]; then \
+		docker compose exec app sh -c 'mix fire_cluster $(distance)'; \
+	else \
+		docker compose exec app sh -c 'mix fire_cluster'; \
+	fi
+
 shell: ## Start an interactive shell in the app container
 	docker compose exec app sh
 
