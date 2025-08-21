@@ -21,19 +21,19 @@ FirePing is a simple, accessible web application that provides instant fire noti
 - Users can create and manage locations with custom radius settings.
 - Locations use GPS coordinates with radius specified in meters.
 
-## Notification Delivery
+## Fire Detection
+
+- Fetch fire from satellite data provided by NASA FIRMS.
+- Clustering of detected fires as an incident + progression tracking.
+
+## UI
+
+- Location and preferences management dashboard.
+- Map visualisation of fires within specified locations.
+
+## Notifications
 
 - Web Push (VAPID)
 - Email
 - SMS
 - Webhook
-
-## Notification Preferences
-
-- Frequency.
-- Lifecycle.
-
-## Services
-
-- FireFetch: Fetch fire data from NASA FIRMS API.
-- FireNotify: Notify users of fires in locations they have.
