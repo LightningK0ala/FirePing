@@ -99,6 +99,9 @@ fire-debug: ## Debug NASA FIRMS API response (usage: make fire-debug or make fir
 fire-count: ## Show fire database statistics
 	docker compose exec app sh -c 'mix fire_count'
 
+stats: ## Show basic database statistics
+	docker compose exec app sh -c 'mix stats'
+
 fire-test: ## Test FireFetch logic synchronously with detailed logging
 	docker compose exec app sh -c 'mix fire_test'
 
