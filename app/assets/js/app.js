@@ -215,6 +215,7 @@ Hooks.Map = {
       spiderfyOnMaxZoom: true,
       showCoverageOnHover: false,
       zoomToBoundsOnClick: true,
+      iconCreateFunction: (cluster) => this.createFireClusterIcon(cluster),
     }).addTo(this.map);
 
     // Listen for draft update requests (from slider or external triggers)
@@ -455,6 +456,13 @@ Hooks.Map = {
         <strong>Coordinates:</strong> ${lat.toFixed(4)}, ${lng.toFixed(4)}
       `);
 
+      // Store fire data on marker for cluster calculations
+      fireMarker.fireData = {
+        frp: frp,
+        confidence: confidence,
+        satellite: fire.satellite || "N/A",
+      };
+
       this.fireCluster.addLayer(fireMarker);
     });
 
@@ -583,6 +591,98 @@ Hooks.Map = {
     if (confidence === "h") return "#f97316"; // High confidence - orange
     if (frp > 20) return "#ea580c"; // High power - dark orange
     return "#fb923c"; // Normal - light orange
+  },
+
+  getClusterColor(count, avgIntensity) {
+    // Calculate cluster color based on fire count and average intensity
+    // avgIntensity is a score from 0-100 based on FRP and confidence
+
+    // Base red intensity on fire count
+    let baseIntensity;
+    if (count >= 50) baseIntensity = 1.0;
+    else if (count >= 20) baseIntensity = 0.9;
+    else if (count >= 10) baseIntensity = 0.8;
+    else if (count >= 5) baseIntensity = 0.7;
+    else baseIntensity = 0.6;
+
+    // Adjust for average fire intensity (0-100 scale)
+    const intensityMultiplier = 0.5 + avgIntensity / 200; // 0.5 to 1.0
+    const finalIntensity = Math.min(1.0, baseIntensity * intensityMultiplier);
+
+    // Generate red shades - darker red for higher intensity
+    const red = Math.round(139 + 116 * finalIntensity); // 139 to 255
+    const green = Math.round(26 * (1 - finalIntensity * 0.8)); // 26 to ~5
+    const blue = Math.round(26 * (1 - finalIntensity * 0.8)); // 26 to ~5
+
+    return `rgb(${red}, ${green}, ${blue})`;
+  },
+
+  calculateFireIntensity(fireData) {
+    // Calculate intensity score (0-100) based on FRP and confidence
+    let score = 0;
+
+    // FRP contribution (0-70 points)
+    const frp = fireData.frp || 0;
+    if (frp > 50) score += 70;
+    else if (frp > 20) score += 50 + ((frp - 20) / 30) * 20;
+    else if (frp > 5) score += 30 + ((frp - 5) / 15) * 20;
+    else score += (frp / 5) * 30;
+
+    // Confidence contribution (0-30 points)
+    const confidence = fireData.confidence || "n";
+    if (confidence === "h") score += 30;
+    else if (confidence === "n") score += 15;
+    else score += 5; // low confidence
+
+    return Math.min(100, score);
+  },
+
+  createFireClusterIcon(cluster) {
+    const markers = cluster.getAllChildMarkers();
+    const count = markers.length;
+
+    // Calculate average intensity from fire data
+    let totalIntensity = 0;
+    let validMarkers = 0;
+
+    markers.forEach((marker) => {
+      if (marker.fireData) {
+        totalIntensity += this.calculateFireIntensity(marker.fireData);
+        validMarkers++;
+      }
+    });
+
+    const avgIntensity = validMarkers > 0 ? totalIntensity / validMarkers : 50;
+    const color = this.getClusterColor(count, avgIntensity);
+
+    // Size based on count
+    let size;
+    if (count >= 100) size = 50;
+    else if (count >= 50) size = 45;
+    else if (count >= 20) size = 40;
+    else if (count >= 10) size = 35;
+    else size = 30;
+
+    return L.divIcon({
+      html: `<div style="
+        width: ${size}px;
+        height: ${size}px;
+        background-color: ${color};
+        border: 2px solid #7f1d1d;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+        font-size: ${Math.max(12, size * 0.4)}px;
+        text-shadow: 1px 1px 1px rgba(0,0,0,0.7);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      ">🔥</div>`,
+      className: "fire-cluster-icon",
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
+    });
   },
 
   getZoomForRadius(radiusMeters) {
