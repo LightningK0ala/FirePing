@@ -46,7 +46,7 @@ defmodule App.Factory do
       satellite: "N21",
       instrument: "VIIRS",
       version: "2.0NRT",
-      detected_at: ~U[2025-08-07 01:05:00Z],
+      detected_at: DateTime.utc_now(),
       confidence: "n",
       daynight: "D",
       bright_ti4: 338.39,

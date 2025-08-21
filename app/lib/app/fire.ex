@@ -136,7 +136,13 @@ defmodule App.Fire do
     datetime_str = "#{acq_date}T#{hour}:#{minute}:00Z"
 
     case DateTime.from_iso8601(datetime_str) do
-      {:ok, datetime, 0} -> {:ok, datetime}
+      {:ok, datetime, _offset} ->
+        if DateTime.compare(datetime, ~U[2100-01-01 00:00:00Z]) == :gt do
+          {:error, "Date is in the future"}
+        else
+          {:ok, datetime}
+        end
+
       {:error, reason} -> {:error, reason}
     end
   end
@@ -405,22 +411,28 @@ defmodule App.Fire do
   Returns the incident_id if found, nil otherwise.
   """
   def find_incident_for_fire(new_fire, clustering_distance_meters \\ 5000, expiry_hours \\ 72) do
-    cutoff = DateTime.utc_now() |> DateTime.add(-expiry_hours, :hour)
-    
+    # Find fires within expiry_hours before the new fire's detection time
+    # Use current time if detected_at is nil (for testing or incomplete data)
+    reference_time = new_fire.detected_at || DateTime.utc_now()
+    cutoff = reference_time |> DateTime.add(-expiry_hours, :hour)
+    max_time = reference_time
+
     # Create a pseudo-location for the new fire to reuse existing bounding box logic
     pseudo_location = %{
       latitude: new_fire.latitude,
       longitude: new_fire.longitude,
       radius: clustering_distance_meters
     }
-    
+
     # Use existing bounding box calculation
     bounding_box = calculate_bounding_box([pseudo_location])
-    fire_point = %Geo.Point{coordinates: {new_fire.longitude, new_fire.latitude}, srid: 4326}
+    # Create point if not present (for test fires built with factories)
+    fire_point = new_fire.point || %Geo.Point{coordinates: {new_fire.longitude, new_fire.latitude}, srid: 4326}
 
     # Follow the same pattern as recent_fires_near_locations
     __MODULE__
     |> where([f], f.detected_at >= ^cutoff)
+    |> where([f], f.detected_at <= ^max_time)
     |> where([f], not is_nil(f.fire_incident_id))
     # Bounding box pre-filter (fast with regular indexes)
     |> where([f], f.latitude >= ^bounding_box.min_lat)
@@ -494,46 +506,44 @@ defmodule App.Fire do
       |> Enum.map(&process_nasa_data_for_insert/1)
       |> Enum.reject(&is_nil/1)
 
-    # Insert fires first (without incident assignment)
-    batch_size = 3000
+    # Insert fires first (without incident assignment) and return the inserted records
+    {total_inserted, inserted_fires} = App.Repo.insert_all(__MODULE__, processed_data,
+      on_conflict: :nothing,
+      returning: [:id, :latitude, :longitude, :point, :detected_at, :fire_incident_id, :confidence, :satellite]
+    )
 
-    {total_inserted, _} =
-      processed_data
-      |> Enum.chunk_every(batch_size)
-      |> Enum.reduce({0, nil}, fn batch, {total_count, _} ->
-        {count, _} = App.Repo.insert_all(__MODULE__, batch, on_conflict: :nothing)
-        {total_count + count, nil}
-      end)
+    # Convert returned data to Fire structs for clustering
+    unassigned_fires =
+      if total_inserted > 0 do
+        # Ensure inserted_fires is always treated as a list
+        if is_list(inserted_fires), do: inserted_fires, else: [inserted_fires]
+      else
+        []
+      end
 
-    # Now assign newly inserted fires to incidents
-    if total_inserted > 0 do
-      # Get fires that don't have incident assignments yet
-      # Use recent cutoff to focus on newly processed fires
-      recent_cutoff = DateTime.utc_now() |> DateTime.add(-1, :hour)
-      
-      unassigned_fires =
-        __MODULE__
-        |> where([f], is_nil(f.fire_incident_id))
-        |> where([f], f.inserted_at >= ^recent_cutoff)
-        |> order_by([f], asc: f.detected_at)
-        |> App.Repo.all()
-
-      # Process each unassigned fire for clustering
-      clustering_results =
-        unassigned_fires
-        |> Enum.map(fn fire ->
+    # Process each unassigned fire for clustering (sequentially to ensure proper clustering)
+    clustering_results =
+      unassigned_fires
+      |> Enum.reduce([], fn fire, acc ->
+        result = App.Repo.transaction(fn ->
           case assign_to_incident(fire, clustering_distance, expiry_hours) do
             {:ok, _} -> :ok
-            {:error, reason} -> {:error, fire.id, reason}
+            {:error, reason} -> App.Repo.rollback({:error, fire.id, reason})
           end
         end)
+        
+        case result do
+          {:ok, :ok} -> [:ok | acc]
+          {:error, error_tuple} -> [error_tuple | acc]
+        end
+      end)
+      |> Enum.reverse()
 
-      clustering_errors = Enum.filter(clustering_results, &match?({:error, _, _}, &1))
+    clustering_errors = Enum.filter(clustering_results, &match?({:error, _, _}, &1))
 
-      if length(clustering_errors) > 0 do
-        require Logger
-        Logger.warning("Some fires could not be assigned to incidents: #{inspect(clustering_errors)}")
-      end
+    if length(clustering_errors) > 0 do
+      require Logger
+      Logger.warning("Some fires could not be assigned to incidents: #{inspect(clustering_errors)}")
     end
 
     {total_inserted, nil}
