@@ -26,13 +26,13 @@ defmodule Mix.Tasks.FireCluster do
     Mix.shell().info("   Clustering distance: #{distance}m")
     Mix.shell().info("   Expiry window: #{expiry}h")
 
-    {:ok, job} = App.Workers.FireClustering.enqueue_now(
-      clustering_distance: distance,
-      expiry_hours: expiry
-    )
+    {:ok, job} =
+      App.Workers.FireClustering.enqueue_now(
+        clustering_distance: distance,
+        expiry_hours: expiry
+      )
 
     Mix.shell().info("✅ Fire clustering job enqueued with ID: #{job.id}")
     Mix.shell().info("📊 Check progress at: http://localhost:4000/admin/oban")
   end
 end
-

@@ -6,11 +6,13 @@ defmodule AppWeb.AuthLive.Dashboard do
     # current_user is set by the on_mount hook
     locations = Location.list_for_user(socket.assigns.current_user.id)
     fires = App.Fire.recent_fires_near_locations(locations, 24, quality: :high, limit: 1000)
+    incidents = App.FireIncident.incidents_from_fires(fires)
 
     socket =
       socket
       |> assign(:locations, locations)
       |> assign(:fires, fires)
+      |> assign(:incidents, incidents)
       |> assign(:show_form, false)
       |> assign(:form, to_form(%{}))
       |> assign(:editing_location_id, nil)
@@ -133,10 +135,12 @@ defmodule AppWeb.AuthLive.Dashboard do
   defp reload_locations_and_fires(socket) do
     locations = Location.list_for_user(socket.assigns.current_user.id)
     fires = App.Fire.recent_fires_near_locations(locations, 24, quality: :high, limit: 1000)
+    incidents = App.FireIncident.incidents_from_fires(fires)
 
     socket
     |> assign(:locations, locations)
     |> assign(:fires, fires)
+    |> assign(:incidents, incidents)
     |> push_data_to_map(locations, fires)
   end
 
@@ -166,7 +170,33 @@ defmodule AppWeb.AuthLive.Dashboard do
       {:error, reason} ->
         # Fallback to regular JSON if MessagePack fails
         IO.puts("MessagePack encoding failed: #{inspect(reason)}")
-    push_event(socket, "update_map_data", %{locations: locations, fires: fires})
+        push_event(socket, "update_map_data", %{locations: locations, fires: fires})
+    end
+  end
+
+  defp format_datetime(datetime) do
+    Calendar.strftime(datetime, "%b %d, %Y at %I:%M %p")
+  end
+
+  defp time_ago(datetime) do
+    now = DateTime.utc_now()
+    diff_seconds = DateTime.diff(now, datetime, :second)
+
+    cond do
+      diff_seconds < 60 ->
+        "#{diff_seconds}s ago"
+
+      diff_seconds < 3600 ->
+        minutes = div(diff_seconds, 60)
+        "#{minutes}m ago"
+
+      diff_seconds < 86400 ->
+        hours = div(diff_seconds, 3600)
+        "#{hours}h ago"
+
+      true ->
+        days = div(diff_seconds, 86400)
+        "#{days}d ago"
     end
   end
 
@@ -448,8 +478,84 @@ defmodule AppWeb.AuthLive.Dashboard do
         </div>
       </div>
 
-      <div class="grid grid-cols-1 gap-6">
-        <!-- Settings -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Fire Incidents Widget -->
+        <div class="bg-white dark:bg-zinc-950 rounded-lg shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-800">
+          <div class="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+              Active Fire Incidents
+            </h2>
+            <span class="inline-flex items-center rounded-full bg-red-100 dark:bg-red-900/20 px-2.5 py-0.5 text-xs font-medium text-red-800 dark:text-red-400">
+              {length(@incidents)} active
+            </span>
+          </div>
+          <div class="p-4">
+            <%= if Enum.empty?(@incidents) do %>
+              <div class="text-center py-8 text-zinc-500">
+                <div class="mb-2">🔥</div>
+                <p>No active fire incidents in your monitored areas.</p>
+                <p class="text-sm">This is good news!</p>
+              </div>
+            <% else %>
+              <div class="space-y-3 max-h-96 overflow-y-auto">
+                <%= for incident <- @incidents do %>
+                  <div class="p-3 bg-red-50 dark:bg-red-900/10 rounded-lg border border-red-200 dark:border-red-800/30">
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-1">
+                          <span class="inline-flex items-center rounded-full bg-red-100 dark:bg-red-900/30 px-2 py-0.5 text-xs font-medium text-red-800 dark:text-red-400">
+                            {incident.status}
+                          </span>
+                          <span class="text-sm text-zinc-600 dark:text-zinc-400">
+                            {incident.fire_count} fire{if incident.fire_count != 1, do: "s"}
+                          </span>
+                          <span class="text-xs text-zinc-500 dark:text-zinc-400 font-mono">
+                            ID: {String.slice(incident.id, 0, 8)}...
+                          </span>
+                        </div>
+                        <p class="text-sm text-zinc-700 dark:text-zinc-300 mb-1">
+                          📍 {Float.round(incident.center_latitude, 4)}, {Float.round(
+                            incident.center_longitude,
+                            4
+                          )}
+                        </p>
+                        <div class="text-xs text-zinc-500 dark:text-zinc-400 space-y-1">
+                          <div>
+                            <strong>First detected:</strong> {format_datetime(
+                              incident.first_detected_at
+                            )}
+                          </div>
+                          <div>
+                            <strong>Last activity:</strong> {format_datetime(
+                              incident.last_detected_at
+                            )}
+                          </div>
+                          <%= if incident.max_frp do %>
+                            <div>
+                              <strong>Max intensity:</strong> {Float.round(incident.max_frp, 1)} MW
+                            </div>
+                          <% end %>
+                          <%= if incident.avg_frp do %>
+                            <div>
+                              <strong>Avg intensity:</strong> {Float.round(incident.avg_frp, 1)} MW
+                            </div>
+                          <% end %>
+                        </div>
+                      </div>
+                      <div class="text-right">
+                        <div class="text-xs text-zinc-500 dark:text-zinc-400">
+                          {time_ago(incident.last_detected_at)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+        </div>
+        
+    <!-- Settings -->
         <div class="bg-white dark:bg-zinc-950 rounded-lg shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-800">
           <div class="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
             <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Settings</h2>

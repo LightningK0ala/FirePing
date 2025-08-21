@@ -29,12 +29,13 @@ defmodule App.FireIncidentTest do
       changeset = FireIncident.changeset(%FireIncident{}, %{})
 
       refute changeset.valid?
+
       assert errors_on(changeset) == %{
-        center_latitude: ["can't be blank"],
-        center_longitude: ["can't be blank"],
-        first_detected_at: ["can't be blank"],
-        last_detected_at: ["can't be blank"]
-      }
+               center_latitude: ["can't be blank"],
+               center_longitude: ["can't be blank"],
+               first_detected_at: ["can't be blank"],
+               last_detected_at: ["can't be blank"]
+             }
     end
 
     test "validates status inclusion" do
@@ -85,12 +86,13 @@ defmodule App.FireIncidentTest do
 
   describe "create_from_fire/1" do
     test "creates incident from fire detection" do
-      fire = build(:fire, %{
-        latitude: 37.7749,
-        longitude: -122.4194,
-        detected_at: ~U[2024-01-01 12:00:00Z],
-        frp: 10.5
-      })
+      fire =
+        build(:fire, %{
+          latitude: 37.7749,
+          longitude: -122.4194,
+          detected_at: ~U[2024-01-01 12:00:00Z],
+          frp: 10.5
+        })
 
       assert {:ok, incident} = FireIncident.create_from_fire(fire)
 
@@ -109,19 +111,21 @@ defmodule App.FireIncidentTest do
 
   describe "add_fire/2" do
     test "updates incident metrics when fire is added" do
-      incident = insert(:fire_incident, %{
-        fire_count: 1,
-        last_detected_at: ~U[2024-01-01 12:00:00Z],
-        max_frp: 10.0,
-        min_frp: 10.0,
-        avg_frp: 10.0,
-        total_frp: 10.0
-      })
+      incident =
+        insert(:fire_incident, %{
+          fire_count: 1,
+          last_detected_at: ~U[2024-01-01 12:00:00Z],
+          max_frp: 10.0,
+          min_frp: 10.0,
+          avg_frp: 10.0,
+          total_frp: 10.0
+        })
 
-      new_fire = build(:fire, %{
-        detected_at: ~U[2024-01-01 13:00:00Z],
-        frp: 20.0
-      })
+      new_fire =
+        build(:fire, %{
+          detected_at: ~U[2024-01-01 13:00:00Z],
+          frp: 20.0
+        })
 
       assert {:ok, updated_incident} = FireIncident.add_fire(incident, new_fire)
 
@@ -134,11 +138,12 @@ defmodule App.FireIncidentTest do
     end
 
     test "handles nil FRP values" do
-      incident = insert(:fire_incident, %{
-        fire_count: 1,
-        total_frp: 10.0,
-        avg_frp: 10.0
-      })
+      incident =
+        insert(:fire_incident, %{
+          fire_count: 1,
+          total_frp: 10.0,
+          avg_frp: 10.0
+        })
 
       new_fire = build(:fire, %{frp: nil})
 
@@ -169,10 +174,11 @@ defmodule App.FireIncidentTest do
       old_time = DateTime.add(now, -25, :hour)
 
       # Active incident within range
-      recent_incident = insert(:fire_incident, %{
-        status: "active",
-        last_detected_at: recent_time
-      })
+      recent_incident =
+        insert(:fire_incident, %{
+          status: "active",
+          last_detected_at: recent_time
+        })
 
       # Active incident outside range
       insert(:fire_incident, %{
@@ -206,10 +212,11 @@ defmodule App.FireIncidentTest do
       })
 
       # Old active incident (should be ended)
-      old_incident = insert(:fire_incident, %{
-        status: "active",
-        last_detected_at: old_time
-      })
+      old_incident =
+        insert(:fire_incident, %{
+          status: "active",
+          last_detected_at: old_time
+        })
 
       # Already ended incident
       insert(:fire_incident, %{
@@ -229,17 +236,19 @@ defmodule App.FireIncidentTest do
       incident = insert(:fire_incident)
 
       # Create fires at different locations
-      _fire1 = insert(:fire, %{
-        latitude: 37.0,
-        longitude: -122.0,
-        fire_incident: incident
-      })
+      _fire1 =
+        insert(:fire, %{
+          latitude: 37.0,
+          longitude: -122.0,
+          fire_incident: incident
+        })
 
-      _fire2 = insert(:fire, %{
-        latitude: 38.0,
-        longitude: -123.0,
-        fire_incident: incident
-      })
+      _fire2 =
+        insert(:fire, %{
+          latitude: 38.0,
+          longitude: -123.0,
+          fire_incident: incident
+        })
 
       assert {:ok, updated_incident} = FireIncident.recalculate_center(incident)
 

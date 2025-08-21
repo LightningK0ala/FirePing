@@ -144,7 +144,8 @@ defmodule App.Fire do
           {:ok, datetime}
         end
 
-      {:error, reason} -> {:error, reason}
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -416,7 +417,8 @@ defmodule App.Fire do
     # Use current time if detected_at is nil (for testing or incomplete data)
     reference_time = new_fire.detected_at || DateTime.utc_now()
     cutoff = reference_time |> DateTime.add(-expiry_hours, :hour)
-    max_time = reference_time
+    # Fix: Use current time for max_time to find incidents created during processing
+    max_time = DateTime.utc_now()
 
     # Create a pseudo-location for the new fire to reuse existing bounding box logic
     pseudo_location = %{
@@ -428,7 +430,9 @@ defmodule App.Fire do
     # Use existing bounding box calculation
     bounding_box = calculate_bounding_box([pseudo_location])
     # Create point if not present (for test fires built with factories)
-    fire_point = new_fire.point || %Geo.Point{coordinates: {new_fire.longitude, new_fire.latitude}, srid: 4326}
+    fire_point =
+      new_fire.point ||
+        %Geo.Point{coordinates: {new_fire.longitude, new_fire.latitude}, srid: 4326}
 
     # Follow the same pattern as recent_fires_near_locations
     __MODULE__
@@ -508,10 +512,20 @@ defmodule App.Fire do
       |> Enum.reject(&is_nil/1)
 
     # Insert fires first (without incident assignment) and return the inserted records
-    {total_inserted, inserted_fires} = App.Repo.insert_all(__MODULE__, processed_data,
-      on_conflict: :nothing,
-      returning: [:id, :latitude, :longitude, :point, :detected_at, :fire_incident_id, :confidence, :satellite]
-    )
+    {total_inserted, inserted_fires} =
+      App.Repo.insert_all(__MODULE__, processed_data,
+        on_conflict: :nothing,
+        returning: [
+          :id,
+          :latitude,
+          :longitude,
+          :point,
+          :detected_at,
+          :fire_incident_id,
+          :confidence,
+          :satellite
+        ]
+      )
 
     # Convert returned data to Fire structs for clustering
     unassigned_fires =
@@ -526,13 +540,14 @@ defmodule App.Fire do
     clustering_results =
       unassigned_fires
       |> Enum.reduce([], fn fire, acc ->
-        result = App.Repo.transaction(fn ->
-          case assign_to_incident(fire, clustering_distance, expiry_hours) do
-            {:ok, _} -> :ok
-            {:error, reason} -> App.Repo.rollback({:error, fire.id, reason})
-          end
-        end)
-        
+        result =
+          App.Repo.transaction(fn ->
+            case assign_to_incident(fire, clustering_distance, expiry_hours) do
+              {:ok, _} -> :ok
+              {:error, reason} -> App.Repo.rollback({:error, fire.id, reason})
+            end
+          end)
+
         case result do
           {:ok, :ok} -> [:ok | acc]
           {:error, error_tuple} -> [error_tuple | acc]
@@ -543,7 +558,9 @@ defmodule App.Fire do
     clustering_errors = Enum.filter(clustering_results, &match?({:error, _, _}, &1))
 
     if length(clustering_errors) > 0 do
-      Logger.warning("Some fires could not be assigned to incidents: #{inspect(clustering_errors)}")
+      Logger.warning(
+        "Some fires could not be assigned to incidents: #{inspect(clustering_errors)}"
+      )
     end
 
     {total_inserted, nil}
@@ -580,7 +597,7 @@ defmodule App.Fire do
     expiry_hours = Keyword.get(opts, :expiry_hours, 72)
 
     # Find all unassigned fires
-    unassigned_fires = 
+    unassigned_fires =
       __MODULE__
       |> where([f], is_nil(f.fire_incident_id))
       |> App.Repo.all()
@@ -600,23 +617,27 @@ defmodule App.Fire do
         |> Enum.reduce({[], 0}, fn {fire, index}, {acc, _} ->
           # Log progress every 10 fires or for small batches, every fire
           progress_interval = if total_count <= 20, do: 1, else: 10
-          
+
           if rem(index, progress_interval) == 0 or index == total_count do
-            Logger.info("Processing fire #{index}/#{total_count} (#{Float.round(index / total_count * 100, 1)}%)")
+            Logger.info(
+              "Processing fire #{index}/#{total_count} (#{Float.round(index / total_count * 100, 1)}%)"
+            )
           end
 
-          result = App.Repo.transaction(fn ->
-            case assign_to_incident(fire, clustering_distance, expiry_hours) do
-              {:ok, _} -> :ok
-              {:error, reason} -> App.Repo.rollback({:error, fire.id, reason})
+          result =
+            App.Repo.transaction(fn ->
+              case assign_to_incident(fire, clustering_distance, expiry_hours) do
+                {:ok, _} -> :ok
+                {:error, reason} -> App.Repo.rollback({:error, fire.id, reason})
+              end
+            end)
+
+          new_result =
+            case result do
+              {:ok, :ok} -> :ok
+              {:error, error_tuple} -> error_tuple
             end
-          end)
-          
-          new_result = case result do
-            {:ok, :ok} -> :ok
-            {:error, error_tuple} -> error_tuple
-          end
-          
+
           {[new_result | acc], index}
         end)
 
@@ -624,10 +645,14 @@ defmodule App.Fire do
       clustering_errors = Enum.filter(clustering_results, &match?({:error, _, _}, &1))
       success_count = total_count - length(clustering_errors)
 
-      Logger.info("Completed processing #{total_count} unassigned fires: #{success_count} successful, #{length(clustering_errors)} failed")
+      Logger.info(
+        "Completed processing #{total_count} unassigned fires: #{success_count} successful, #{length(clustering_errors)} failed"
+      )
 
       if length(clustering_errors) > 0 do
-        Logger.warning("Some unassigned fires could not be assigned to incidents: #{inspect(clustering_errors)}")
+        Logger.warning(
+          "Some unassigned fires could not be assigned to incidents: #{inspect(clustering_errors)}"
+        )
       end
 
       {total_count, clustering_errors}

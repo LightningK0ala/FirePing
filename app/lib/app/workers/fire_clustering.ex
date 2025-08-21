@@ -19,9 +19,9 @@ defmodule App.Workers.FireClustering do
     start_time = System.monotonic_time(:millisecond)
 
     case Fire.process_unassigned_fires(
-      clustering_distance: clustering_distance,
-      expiry_hours: expiry_hours
-    ) do
+           clustering_distance: clustering_distance,
+           expiry_hours: expiry_hours
+         ) do
       {processed_count, errors} ->
         end_time = System.monotonic_time(:millisecond)
         duration_ms = end_time - start_time
@@ -92,4 +92,3 @@ defmodule App.Workers.FireClustering do
     |> Oban.insert()
   end
 end
-

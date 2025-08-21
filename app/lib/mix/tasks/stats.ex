@@ -55,7 +55,11 @@ defmodule Mix.Tasks.Stats do
         Mix.shell().info("🕐 Last fire fetch: Never completed")
 
       %{completed_at: completed_at, meta: meta} ->
-        fires_count = if meta && is_map(meta), do: Map.get(meta, "total_fires_inserted", "unknown"), else: "unknown"
+        fires_count =
+          if meta && is_map(meta),
+            do: Map.get(meta, "total_fires_inserted", "unknown"),
+            else: "unknown"
+
         Mix.shell().info("🕐 Last fire fetch: #{completed_at} (#{fires_count} fires)")
     end
   end

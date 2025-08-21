@@ -3,33 +3,44 @@ defmodule App.FireIncident do
   import Ecto.Changeset
   import Ecto.Query
 
-  @derive {Jason.Encoder, only: [:id, :status, :center_latitude, :center_longitude, :fire_count, :first_detected_at, :last_detected_at, :max_frp, :avg_frp]}
+  @derive {Jason.Encoder,
+           only: [
+             :id,
+             :status,
+             :center_latitude,
+             :center_longitude,
+             :fire_count,
+             :first_detected_at,
+             :last_detected_at,
+             :max_frp,
+             :avg_frp
+           ]}
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
 
   schema "fire_incidents" do
     # Status tracking
     field :status, :string, default: "active"
-    
+
     # Center point for map display
     field :center_latitude, :float
     field :center_longitude, :float
     field :center_point, Geo.PostGIS.Geometry
-    
+
     # Incident metrics
     field :fire_count, :integer, default: 0
     field :first_detected_at, :utc_datetime
     field :last_detected_at, :utc_datetime
-    
+
     # Fire intensity metrics
     field :max_frp, :float
     field :min_frp, :float
     field :avg_frp, :float
     field :total_frp, :float
-    
+
     # Incident lifecycle
     field :ended_at, :utc_datetime
-    
+
     # Associations
     has_many :fires, App.Fire, foreign_key: :fire_incident_id
 
@@ -53,7 +64,12 @@ defmodule App.FireIncident do
       :total_frp,
       :ended_at
     ])
-    |> validate_required([:center_latitude, :center_longitude, :first_detected_at, :last_detected_at])
+    |> validate_required([
+      :center_latitude,
+      :center_longitude,
+      :first_detected_at,
+      :last_detected_at
+    ])
     |> validate_inclusion(:status, @valid_statuses)
     |> validate_latitude()
     |> validate_longitude()
@@ -86,7 +102,9 @@ defmodule App.FireIncident do
 
   defp maybe_create_center_point(changeset) do
     latitude = get_field(changeset, :center_latitude) || get_change(changeset, :center_latitude)
-    longitude = get_field(changeset, :center_longitude) || get_change(changeset, :center_longitude)
+
+    longitude =
+      get_field(changeset, :center_longitude) || get_change(changeset, :center_longitude)
 
     case {latitude, longitude} do
       {lat, lng} when is_number(lat) and is_number(lng) ->
@@ -206,6 +224,28 @@ defmodule App.FireIncident do
     |> where([i], i.status == "active")
     |> where([i], i.last_detected_at < ^cutoff)
     |> App.Repo.all()
+  end
+
+  @doc """
+  Returns incidents for the given list of fires by extracting their incident IDs.
+  """
+  def incidents_from_fires(fires) when is_list(fires) do
+    incident_ids =
+      fires
+      |> Enum.map(& &1.fire_incident_id)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    case incident_ids do
+      [] ->
+        []
+
+      ids ->
+        __MODULE__
+        |> where([i], i.id in ^ids)
+        |> order_by([i], desc: i.last_detected_at)
+        |> App.Repo.all()
+    end
   end
 
   # Helper functions
