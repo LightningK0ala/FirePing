@@ -81,7 +81,9 @@ config :app, Oban,
     {Oban.Plugins.Cron,
      crontab: [
        # Every 10 minutes (NASA recommendation)
-       {"*/10 * * * *", App.Workers.FireFetch}
+       {"*/10 * * * *", App.Workers.FireFetch},
+       # Every hour to check for incidents to end
+       {"0 * * * *", App.Workers.IncidentCleanup}
      ]}
   ],
   queues: [default: 10]

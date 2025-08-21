@@ -132,6 +132,46 @@ defmodule AppWeb.AuthLive.Dashboard do
     end
   end
 
+  def handle_event("center_map_on_incident", params, socket) do
+    lat = parse_float(params["lat"])
+    lng = parse_float(params["lng"])
+    incident_id = params["incident-id"]
+
+    # Push event to center map on the incident location
+    {:noreply,
+     socket
+     |> push_event("center_map", %{
+       latitude: lat,
+       longitude: lng,
+       # Zoom in closer to see the incident area
+       zoom: 14,
+       incident_id: incident_id,
+       type: "incident"
+     })}
+  end
+
+  def handle_event("center_map_on_location", params, socket) do
+    lat = parse_float(params["lat"])
+    lng = parse_float(params["lng"])
+    radius = String.to_integer(params["radius"])
+    location_id = params["location-id"]
+
+    # Calculate appropriate zoom level based on radius
+    zoom = calculate_zoom_for_radius(radius)
+
+    # Push event to center map on the location
+    {:noreply,
+     socket
+     |> push_event("center_map", %{
+       latitude: lat,
+       longitude: lng,
+       zoom: zoom,
+       location_id: location_id,
+       radius: radius,
+       type: "location"
+     })}
+  end
+
   defp reload_locations_and_fires(socket) do
     locations = Location.list_for_user(socket.assigns.current_user.id)
     fires = App.Fire.recent_fires_near_locations(locations, 24, quality: :high, limit: 1000)
@@ -197,6 +237,26 @@ defmodule AppWeb.AuthLive.Dashboard do
       true ->
         days = div(diff_seconds, 86400)
         "#{days}d ago"
+    end
+  end
+
+  defp calculate_zoom_for_radius(radius_meters) do
+    # Calculate appropriate zoom level to show the location's monitoring area
+    cond do
+      # > 100km
+      radius_meters > 100_000 -> 7
+      # > 50km
+      radius_meters > 50_000 -> 8
+      # > 20km
+      radius_meters > 20_000 -> 10
+      # > 10km
+      radius_meters > 10_000 -> 11
+      # > 5km
+      radius_meters > 5_000 -> 12
+      # > 2km
+      radius_meters > 2_000 -> 13
+      # <= 2km
+      true -> 14
     end
   end
 
@@ -342,7 +402,14 @@ defmodule AppWeb.AuthLive.Dashboard do
           <% else %>
             <ul class="space-y-3">
               <%= for location <- @locations do %>
-                <li class="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                <li
+                  class="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                  phx-click="center_map_on_location"
+                  phx-value-lat={location.latitude}
+                  phx-value-lng={location.longitude}
+                  phx-value-radius={location.radius}
+                  phx-value-location-id={location.id}
+                >
                   <%= if @editing_location_id == location.id do %>
                     <form
                       id={"edit-location-form-#{location.id}"}
@@ -451,6 +518,9 @@ defmodule AppWeb.AuthLive.Dashboard do
                         <p class="text-sm text-zinc-600">
                           {location.radius} meter radius
                         </p>
+                        <p class="text-xs text-zinc-400 dark:text-zinc-500 mt-1">
+                          👆 Click to view on map
+                        </p>
                       </div>
                       <div class="flex items-center gap-2">
                         <button
@@ -499,7 +569,13 @@ defmodule AppWeb.AuthLive.Dashboard do
             <% else %>
               <div class="space-y-3 max-h-96 overflow-y-auto">
                 <%= for incident <- @incidents do %>
-                  <div class="p-3 bg-red-50 dark:bg-red-900/10 rounded-lg border border-red-200 dark:border-red-800/30">
+                  <div
+                    class="p-3 bg-red-50 dark:bg-red-900/10 rounded-lg border border-red-200 dark:border-red-800/30 cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors"
+                    phx-click="center_map_on_incident"
+                    phx-value-lat={incident.center_latitude}
+                    phx-value-lng={incident.center_longitude}
+                    phx-value-incident-id={incident.id}
+                  >
                     <div class="flex items-start justify-between gap-3">
                       <div class="flex-1">
                         <div class="flex items-center gap-2 mb-1">
@@ -546,6 +622,9 @@ defmodule AppWeb.AuthLive.Dashboard do
                         <div class="text-xs text-zinc-500 dark:text-zinc-400">
                           {time_ago(incident.last_detected_at)}
                         </div>
+                        <div class="text-xs text-zinc-400 dark:text-zinc-500 mt-1">
+                          👆 Click to view on map
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -554,7 +633,7 @@ defmodule AppWeb.AuthLive.Dashboard do
             <% end %>
           </div>
         </div>
-
+        
     <!-- Settings -->
         <div class="bg-white dark:bg-zinc-950 rounded-lg shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-800">
           <div class="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">

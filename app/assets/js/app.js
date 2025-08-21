@@ -208,6 +208,24 @@ Hooks.Map = {
       this.updateMapData(locations, processedFires);
     });
 
+    // Handle map centering from LiveView (for incident and location clicks)
+    this.handleEvent("center_map", (data) => {
+      const {
+        latitude,
+        longitude,
+        zoom = 14,
+        incident_id,
+        location_id,
+        radius,
+        type,
+      } = data;
+
+      if (typeof latitude === "number" && typeof longitude === "number") {
+        // Center map on the location
+        this.map.setView([latitude, longitude], zoom);
+      }
+    });
+
     // Initialize with empty locations and fire cluster
     this.markersLayer = L.layerGroup().addTo(this.map);
     this.fireCluster = L.markerClusterGroup({

@@ -114,6 +114,13 @@ fire-cluster: ## Manually trigger fire clustering job (usage: make fire-cluster 
 		docker compose exec app sh -c 'mix fire_cluster'; \
 	fi
 
+incident-cleanup: ## Manually trigger incident cleanup job (usage: make incident-cleanup or make incident-cleanup hours=48)
+	@if [ -n "$(hours)" ]; then \
+		docker compose exec app sh -c 'mix incident_cleanup $(hours)'; \
+	else \
+		docker compose exec app sh -c 'mix incident_cleanup'; \
+	fi
+
 shell: ## Start an interactive shell in the app container
 	docker compose exec app sh
 
