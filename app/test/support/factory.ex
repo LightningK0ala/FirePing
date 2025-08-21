@@ -74,4 +74,37 @@ defmodule App.Factory do
       updated_fire
     end
   end
+
+  def fire_incident_factory do
+    %App.FireIncident{
+      status: "active",
+      center_latitude: 37.7749,
+      center_longitude: -122.4194,
+      center_point: %Geo.Point{coordinates: {-122.4194, 37.7749}, srid: 4326},
+      fire_count: 0,
+      first_detected_at: ~U[2024-01-01 12:00:00Z],
+      last_detected_at: ~U[2024-01-01 12:00:00Z],
+      max_frp: 0.0,
+      min_frp: 0.0,
+      avg_frp: 0.0,
+      total_frp: 0.0
+    }
+  end
+
+  def fire_incident_factory(attrs) when is_map(attrs) do
+    incident = fire_incident_factory()
+    updated_incident = struct!(incident, attrs)
+
+    # Regenerate center_point if coordinates changed
+    if Map.has_key?(attrs, :center_latitude) or Map.has_key?(attrs, :center_longitude) do
+      point = %Geo.Point{
+        coordinates: {updated_incident.center_longitude, updated_incident.center_latitude},
+        srid: 4326
+      }
+
+      %{updated_incident | center_point: point}
+    else
+      updated_incident
+    end
+  end
 end

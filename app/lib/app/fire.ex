@@ -36,6 +36,9 @@ defmodule App.Fire do
     # Deduplication key
     field :nasa_id, :string
 
+    # Associations
+    belongs_to :fire_incident, App.FireIncident
+
     timestamps()
   end
 
@@ -55,7 +58,8 @@ defmodule App.Fire do
       :frp,
       :scan,
       :track,
-      :nasa_id
+      :nasa_id,
+      :fire_incident_id
     ])
     |> cast_nasa_numeric_fields(attrs)
     |> validate_required([:latitude, :longitude, :detected_at, :confidence, :satellite])
@@ -138,14 +142,24 @@ defmodule App.Fire do
   end
 
   def generate_nasa_id(nasa_data) do
-    lat = Float.round(nasa_data["latitude"], 4)
-    lng = Float.round(nasa_data["longitude"], 4)
+    lat = parse_float_value(nasa_data["latitude"]) |> Float.round(4)
+    lng = parse_float_value(nasa_data["longitude"]) |> Float.round(4)
     date = nasa_data["acq_date"]
     time = nasa_data["acq_time"]
     satellite = nasa_data["satellite"]
 
     "#{lat}_#{lng}_#{date}_#{time}_#{satellite}"
   end
+
+  defp parse_float_value(value) when is_binary(value) do
+    case Float.parse(value) do
+      {float_val, _} -> float_val
+      :error -> 0.0
+    end
+  end
+
+  defp parse_float_value(value) when is_number(value), do: value * 1.0
+  defp parse_float_value(_), do: 0.0
 
   def create_from_nasa_data(nasa_data) do
     with {:ok, detected_at} <- parse_nasa_datetime(nasa_data["acq_date"], nasa_data["acq_time"]) do
@@ -358,8 +372,8 @@ defmodule App.Fire do
 
   defp process_nasa_data_for_insert(nasa_data) do
     with {:ok, detected_at} <- parse_nasa_datetime(nasa_data["acq_date"], nasa_data["acq_time"]) do
-      lat = nasa_data["latitude"]
-      lng = nasa_data["longitude"]
+      lat = parse_float_value(nasa_data["latitude"])
+      lng = parse_float_value(nasa_data["longitude"])
 
       %{
         id: Ecto.UUID.generate(),
@@ -372,11 +386,11 @@ defmodule App.Fire do
         detected_at: detected_at,
         confidence: nasa_data["confidence"],
         daynight: nasa_data["daynight"],
-        bright_ti4: nasa_data["bright_ti4"],
-        bright_ti5: nasa_data["bright_ti5"],
-        frp: nasa_data["frp"],
-        scan: nasa_data["scan"],
-        track: nasa_data["track"],
+        bright_ti4: parse_float_value(nasa_data["bright_ti4"]),
+        bright_ti5: parse_float_value(nasa_data["bright_ti5"]),
+        frp: parse_float_value(nasa_data["frp"]),
+        scan: parse_float_value(nasa_data["scan"]),
+        track: parse_float_value(nasa_data["track"]),
         nasa_id: generate_nasa_id(nasa_data),
         inserted_at: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second),
         updated_at: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
@@ -384,6 +398,130 @@ defmodule App.Fire do
     else
       _ -> nil
     end
+  end
+
+  @doc """
+  Finds an existing incident for a new fire based on spatial clustering.
+  Returns the incident_id if found, nil otherwise.
+  """
+  def find_incident_for_fire(new_fire, clustering_distance_meters \\ 5000, expiry_hours \\ 72) do
+    cutoff = DateTime.utc_now() |> DateTime.add(-expiry_hours, :hour)
+    fire_point = %Geo.Point{coordinates: {new_fire.longitude, new_fire.latitude}, srid: 4326}
+
+    # Query recent fires within clustering distance
+    __MODULE__
+    |> where([f], f.detected_at >= ^cutoff)
+    |> where([f], not is_nil(f.fire_incident_id))
+    |> where(
+      [f],
+      fragment(
+        "ST_DWithin(ST_Transform(?, 3857), ST_Transform(?, 3857), ?)",
+        f.point,
+        ^fire_point,
+        ^clustering_distance_meters
+      )
+    )
+    |> select([f], f.fire_incident_id)
+    |> limit(1)
+    |> App.Repo.one()
+  end
+
+  @doc """
+  Assigns a fire to an incident, either creating a new incident or updating an existing one.
+  """
+  def assign_to_incident(fire, clustering_distance_meters \\ 5000, expiry_hours \\ 72) do
+    case find_incident_for_fire(fire, clustering_distance_meters, expiry_hours) do
+      nil ->
+        # Create new incident
+        case App.FireIncident.create_from_fire(fire) do
+          {:ok, incident} ->
+            # Update fire with incident_id
+            update_fire_incident(fire, incident.id)
+
+          error ->
+            error
+        end
+
+      incident_id ->
+        # Add to existing incident
+        incident = App.Repo.get!(App.FireIncident, incident_id)
+
+        with {:ok, _updated_incident} <- App.FireIncident.add_fire(incident, fire),
+             {:ok, updated_fire} <- update_fire_incident(fire, incident_id) do
+          # Recalculate incident center after adding fire
+          App.FireIncident.recalculate_center(incident)
+          {:ok, updated_fire}
+        else
+          error -> error
+        end
+    end
+  end
+
+  @doc """
+  Updates a fire's incident association.
+  """
+  def update_fire_incident(fire, incident_id) do
+    fire
+    |> changeset(%{fire_incident_id: incident_id})
+    |> App.Repo.update()
+  end
+
+  @doc """
+  Processes fires from NASA data and assigns them to incidents.
+  """
+  def process_fires_with_clustering(nasa_data_list, opts \\ []) do
+    clustering_distance = Keyword.get(opts, :clustering_distance, 5000)
+    expiry_hours = Keyword.get(opts, :expiry_hours, 72)
+
+    processed_data =
+      nasa_data_list
+      |> Enum.map(&process_nasa_data_for_insert/1)
+      |> Enum.reject(&is_nil/1)
+
+    # Insert fires first (without incident assignment)
+    batch_size = 3000
+
+    {total_inserted, _} =
+      processed_data
+      |> Enum.chunk_every(batch_size)
+      |> Enum.reduce({0, nil}, fn batch, {total_count, _} ->
+        {count, _} = App.Repo.insert_all(__MODULE__, batch, on_conflict: :nothing)
+        {total_count + count, nil}
+      end)
+
+    # Now assign newly inserted fires to incidents
+    if total_inserted > 0 do
+      # Get fires that don't have incident assignments yet, but limit to recently processed ones
+      # to avoid processing all historical unassigned fires
+      recent_cutoff = DateTime.utc_now() |> DateTime.add(-1, :hour)
+      
+      unassigned_fires =
+        __MODULE__
+        |> where([f], is_nil(f.fire_incident_id))
+        |> where([f], f.inserted_at >= ^recent_cutoff)
+        |> order_by([f], asc: f.detected_at)
+        |> limit(1000)  # Limit to prevent huge queries
+        |> App.Repo.all()
+
+      # Process each unassigned fire for clustering
+      clustering_results =
+        unassigned_fires
+        |> Enum.map(fn fire ->
+          case assign_to_incident(fire, clustering_distance, expiry_hours) do
+            {:ok, _} -> :ok
+            {:error, reason} -> {:error, fire.id, reason}
+          end
+        end)
+
+      clustering_errors = Enum.filter(clustering_results, &match?({:error, _, _}, &1))
+
+      if length(clustering_errors) > 0 do
+        require Logger
+        Logger.warning("Some fires could not be assigned to incidents: #{inspect(clustering_errors)}")
+      end
+    end
+
+    {total_inserted, nil}
   end
 
   # Calculate bounding box for all locations to pre-filter spatially
