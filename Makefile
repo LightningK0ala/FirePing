@@ -102,5 +102,11 @@ fire-count: ## Show fire database statistics
 fire-test: ## Test FireFetch logic synchronously with detailed logging
 	docker compose exec app sh -c 'mix fire_test'
 
+shell: ## Start an interactive shell in the app container
+	docker compose exec app sh
+
+iex: ## Start IEx (Interactive Elixir) in the app container
+	docker compose exec app iex -S mix
+
 %:
 	@:

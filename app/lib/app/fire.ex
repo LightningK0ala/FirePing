@@ -2,6 +2,7 @@ defmodule App.Fire do
   use Ecto.Schema
   import Ecto.Changeset
   import Ecto.Query
+  require Logger
 
   @derive {Jason.Encoder,
            only: [:latitude, :longitude, :detected_at, :confidence, :frp, :satellite]}
@@ -542,7 +543,6 @@ defmodule App.Fire do
     clustering_errors = Enum.filter(clustering_results, &match?({:error, _, _}, &1))
 
     if length(clustering_errors) > 0 do
-      require Logger
       Logger.warning("Some fires could not be assigned to incidents: #{inspect(clustering_errors)}")
     end
 
@@ -585,13 +585,26 @@ defmodule App.Fire do
       |> where([f], is_nil(f.fire_incident_id))
       |> App.Repo.all()
 
-    if length(unassigned_fires) == 0 do
+    total_count = length(unassigned_fires)
+
+    if total_count == 0 do
+      Logger.info("No unassigned fires found to process")
       {0, []}
     else
+      Logger.info("Processing #{total_count} unassigned fires for incident assignment")
+
       # Process each unassigned fire for clustering (sequentially to ensure proper clustering)
-      clustering_results =
+      {clustering_results, _final_index} =
         unassigned_fires
-        |> Enum.reduce([], fn fire, acc ->
+        |> Enum.with_index(1)
+        |> Enum.reduce({[], 0}, fn {fire, index}, {acc, _} ->
+          # Log progress every 10 fires or for small batches, every fire
+          progress_interval = if total_count <= 20, do: 1, else: 10
+          
+          if rem(index, progress_interval) == 0 or index == total_count do
+            Logger.info("Processing fire #{index}/#{total_count} (#{Float.round(index / total_count * 100, 1)}%)")
+          end
+
           result = App.Repo.transaction(fn ->
             case assign_to_incident(fire, clustering_distance, expiry_hours) do
               {:ok, _} -> :ok
@@ -599,21 +612,25 @@ defmodule App.Fire do
             end
           end)
           
-          case result do
-            {:ok, :ok} -> [:ok | acc]
-            {:error, error_tuple} -> [error_tuple | acc]
+          new_result = case result do
+            {:ok, :ok} -> :ok
+            {:error, error_tuple} -> error_tuple
           end
+          
+          {[new_result | acc], index}
         end)
-        |> Enum.reverse()
 
+      clustering_results = Enum.reverse(clustering_results)
       clustering_errors = Enum.filter(clustering_results, &match?({:error, _, _}, &1))
+      success_count = total_count - length(clustering_errors)
+
+      Logger.info("Completed processing #{total_count} unassigned fires: #{success_count} successful, #{length(clustering_errors)} failed")
 
       if length(clustering_errors) > 0 do
-        require Logger
         Logger.warning("Some unassigned fires could not be assigned to incidents: #{inspect(clustering_errors)}")
       end
 
-      {length(unassigned_fires), clustering_errors}
+      {total_count, clustering_errors}
     end
   end
 end
