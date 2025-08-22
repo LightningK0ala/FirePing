@@ -252,23 +252,25 @@ defmodule App.Fire do
   end
 
   @doc """
-  Returns fires near locations with active incidents.
+  Returns fires near locations with incidents.
 
   - `locations`: list of `%App.Location{}` with `point` and `radius`
   - opts:
     - `:limit` optional integer limit
     - `:quality` optional `:all | :high` filter
+    - `:status` optional incident status filter (string or `:all` for all statuses, defaults to `:all`)
   """
-  def fires_near_locations_with_active_incidents(locations, opts \\ [])
-  def fires_near_locations_with_active_incidents([], _opts), do: []
+  def fires_near_locations(locations, opts \\ [])
+  def fires_near_locations([], _opts), do: []
 
-  def fires_near_locations_with_active_incidents(locations, opts) when is_list(locations) do
+  def fires_near_locations(locations, opts) when is_list(locations) do
     :telemetry.span(
-      [:fire, :fires_near_locations_with_active_incidents],
+      [:fire, :fires_near_locations],
       %{opts: opts, location_count: length(locations)},
       fn ->
         limit_count = Keyword.get(opts, :limit)
         quality = Keyword.get(opts, :quality, :all)
+        status = Keyword.get(opts, :status, :all)
 
         # Calculate bounding box to pre-filter spatially
         bounding_box = calculate_bounding_box(locations)
@@ -276,17 +278,30 @@ defmodule App.Fire do
         base =
           __MODULE__
           |> join(:left, [f], i in App.FireIncident, on: f.fire_incident_id == i.id)
-          |> where([f, i], i.status == "active")
+          |> where([f, i], not is_nil(f.fire_incident_id))
           # Add bounding box pre-filter to reduce spatial candidates
           |> where([f, i], f.latitude >= ^bounding_box.min_lat)
           |> where([f, i], f.latitude <= ^bounding_box.max_lat)
           |> where([f, i], f.longitude >= ^bounding_box.min_lng)
           |> where([f, i], f.longitude <= ^bounding_box.max_lng)
 
+        # Apply status filter
+        status_filtered =
+          case status do
+            :all ->
+              base
+
+            status_value when is_binary(status_value) ->
+              where(base, [f, i], i.status == ^status_value)
+
+            _ ->
+              base
+          end
+
         filtered =
           case quality do
-            :high -> where(base, [f, i], f.confidence in ["n", "h"] and f.frp >= 5.0)
-            _ -> base
+            :high -> where(status_filtered, [f, i], f.confidence in ["n", "h"] and f.frp >= 5.0)
+            _ -> status_filtered
           end
 
         # Build OR of ST_DWithin for each location with its radius

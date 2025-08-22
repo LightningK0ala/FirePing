@@ -5,7 +5,7 @@ defmodule AppWeb.AuthLive.Dashboard do
   def mount(_params, _session, socket) do
     # current_user is set by the on_mount hook
     locations = Location.list_for_user(socket.assigns.current_user.id)
-    fires = App.Fire.fires_near_locations_with_active_incidents(locations, quality: :all)
+    fires = App.Fire.fires_near_locations(locations, quality: :all, status: :all)
     incidents = App.FireIncident.incidents_from_fires(fires)
 
     socket =
@@ -219,7 +219,7 @@ defmodule AppWeb.AuthLive.Dashboard do
 
   defp reload_locations_and_fires(socket) do
     locations = Location.list_for_user(socket.assigns.current_user.id)
-    fires = App.Fire.fires_near_locations_with_active_incidents(locations, quality: :all)
+    fires = App.Fire.fires_near_locations(locations, quality: :all, status: :all)
     incidents = App.FireIncident.incidents_from_fires(fires)
 
     socket

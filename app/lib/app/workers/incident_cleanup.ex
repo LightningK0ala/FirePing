@@ -3,8 +3,7 @@ defmodule App.Workers.IncidentCleanup do
   Oban worker for cleaning up fire incidents that have been inactive for too long.
 
   This worker marks incidents as "ended" when they haven't had any fire detections
-  for the configured threshold (default 24 hours). This is typically run hourly
-  via Oban.Plugins.Cron.
+  for the configured threshold (default 24 hours).
   """
   use Oban.Worker,
     queue: :default,
@@ -59,6 +58,9 @@ defmodule App.Workers.IncidentCleanup do
             metadata: metadata
           )
         end
+
+        # Trigger incident deletion job after cleanup completes
+        enqueue_incident_deletion_job()
 
         :ok
     end
@@ -138,6 +140,25 @@ defmodule App.Workers.IncidentCleanup do
     |> Repo.update()
   rescue
     _ -> :ok
+  end
+
+  defp enqueue_incident_deletion_job do
+    Logger.info("IncidentCleanup: Enqueuing IncidentDeletion job")
+
+    case App.Workers.IncidentDeletion.enqueue_now() do
+      {:ok, job} ->
+        Logger.info(
+          "IncidentCleanup: Successfully enqueued IncidentDeletion job with ID: #{job.id}"
+        )
+
+      {:error, reason} ->
+        Logger.warning("IncidentCleanup: Failed to enqueue IncidentDeletion job",
+          reason: inspect(reason)
+        )
+    end
+  rescue
+    error ->
+      Logger.error("IncidentCleanup: Error enqueuing IncidentDeletion job", error: inspect(error))
   end
 
   @doc """

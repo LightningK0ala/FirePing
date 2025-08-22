@@ -7,7 +7,9 @@ defmodule App.Workers.IncidentDeletion do
   """
   use Oban.Worker,
     queue: :default,
-    max_attempts: 3
+    max_attempts: 3,
+    # Only one IncidentDeletion job at a time
+    unique: [states: [:available, :executing]]
 
   require Logger
   alias App.FireIncident

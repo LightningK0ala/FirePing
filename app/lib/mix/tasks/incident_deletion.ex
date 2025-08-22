@@ -3,7 +3,7 @@ defmodule Mix.Tasks.IncidentDeletion do
   Mix task to manually trigger incident deletion jobs.
 
   Usage:
-    mix incident_deletion                    # Use default threshold (30 days)
+    mix incident_deletion                  # Use default threshold (7 days)
     mix incident_deletion 60               # Delete incidents ended more than 60 days ago
   """
   use Mix.Task

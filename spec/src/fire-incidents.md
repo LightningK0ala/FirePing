@@ -1,3 +1,8 @@
+Every 10 minutes an oban cron job runs to fetch new fire data from the FIRMS satellites.
+After successfully fetching the data, a fire clustering job is enqueued to cluster the new fire data into fire incidents.
+Once the clustering job is complete, an incident cleanup job is enqueued to check if any incidents have passed the 24 hour threshold and if so, mark them as ended.
+Once the incident cleanup job is complete, an incident deletion job is enqueued to delete any incidents that have been ended for more than 7 days.
+
 ## Fire Incidents
 
 Data from the FIRMS satellites are recorded as a "fire" record.
@@ -47,10 +52,10 @@ Based on NASA FIRMS satellite flyover frequency, we implement a tiered confidenc
 ```javascript
 // Tiered confidence system for fire-free determination
 const FIRE_FREE_CONFIDENCE = {
-  HIGH: 48,    // 48+ hours without detection = high confidence fire-free
-  MEDIUM: 24,  // 24-48 hours without detection = medium confidence  
-  LOW: 12,     // 12-24 hours without detection = low confidence
-  UNCERTAIN: 6 // < 12 hours since last check = uncertain/too recent
+  HIGH: 48, // 48+ hours without detection = high confidence fire-free
+  MEDIUM: 24, // 24-48 hours without detection = medium confidence
+  LOW: 12, // 12-24 hours without detection = low confidence
+  UNCERTAIN: 6, // < 12 hours since last check = uncertain/too recent
 };
 
 // Default threshold for incident state transition
@@ -58,16 +63,19 @@ const DEFAULT_INCIDENT_END_THRESHOLD = FIRE_FREE_CONFIDENCE.MEDIUM; // 24 hours
 
 // Implementation example
 function determineFireStatus(incident, lastDetectionTimestamp) {
-  const hoursSinceLastDetection = calculateHoursBetween(new Date(), lastDetectionTimestamp);
-  
+  const hoursSinceLastDetection = calculateHoursBetween(
+    new Date(),
+    lastDetectionTimestamp
+  );
+
   if (hoursSinceLastDetection >= FIRE_FREE_CONFIDENCE.HIGH) {
-    return { status: 'FIRE_FREE', confidence: 'HIGH' };
+    return { status: "FIRE_FREE", confidence: "HIGH" };
   } else if (hoursSinceLastDetection >= FIRE_FREE_CONFIDENCE.MEDIUM) {
-    return { status: 'FIRE_FREE', confidence: 'MEDIUM' };
+    return { status: "FIRE_FREE", confidence: "MEDIUM" };
   } else if (hoursSinceLastDetection >= FIRE_FREE_CONFIDENCE.LOW) {
-    return { status: 'FIRE_FREE', confidence: 'LOW' };
+    return { status: "FIRE_FREE", confidence: "LOW" };
   } else {
-    return { status: 'UNCERTAIN', confidence: 'VERY_LOW' };
+    return { status: "UNCERTAIN", confidence: "VERY_LOW" };
   }
 }
 ```

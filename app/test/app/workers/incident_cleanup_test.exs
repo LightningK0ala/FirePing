@@ -215,6 +215,33 @@ defmodule App.Workers.IncidentCleanupTest do
 
       # Should complete successfully with no errors
     end
+
+    test "triggers incident deletion job after cleanup completes" do
+      # Create an incident with fires from 4 days ago (beyond 24 hour threshold)
+      old_datetime = DateTime.utc_now() |> DateTime.add(-4, :day)
+
+      fire = insert(:fire, detected_at: old_datetime)
+
+      incident =
+        insert(:fire_incident,
+          status: "active",
+          last_detected_at: old_datetime,
+          fire_count: 1
+        )
+
+      # Update fire to belong to the incident
+      fire |> Ecto.Changeset.change(fire_incident_id: incident.id) |> Repo.update!()
+
+      # Run the cleanup job with 24 hour threshold
+      assert :ok = perform_job(IncidentCleanup, %{"threshold_hours" => 24})
+
+      # Verify incident is now ended
+      updated_incident = Repo.get(FireIncident, incident.id)
+      assert updated_incident.status == "ended"
+
+      # Verify that IncidentDeletion job was enqueued
+      assert_enqueued(worker: App.Workers.IncidentDeletion)
+    end
   end
 
   describe "enqueue_now/1" do
