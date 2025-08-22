@@ -121,6 +121,13 @@ incident-cleanup: ## Manually trigger incident cleanup job (usage: make incident
 		docker compose exec app sh -c 'mix incident_cleanup'; \
 	fi
 
+incident-deletion: ## Manually trigger incident deletion job (usage: make incident-deletion or make incident-deletion days=60)
+	@if [ -n "$(days)" ]; then \
+		docker compose exec app sh -c 'mix incident_deletion $(days)'; \
+	else \
+		docker compose exec app sh -c 'mix incident_deletion'; \
+	fi
+
 shell: ## Start an interactive shell in the app container
 	docker compose exec app sh
 

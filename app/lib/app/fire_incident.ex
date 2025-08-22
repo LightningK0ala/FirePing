@@ -293,6 +293,55 @@ defmodule App.FireIncident do
     end
   end
 
+  @doc """
+  Deletes a fire incident and all associated fires (via cascade delete).
+  """
+  def delete_incident(incident) do
+    case App.Repo.get(__MODULE__, incident.id) do
+      nil ->
+        {:error, :not_found}
+
+      found_incident ->
+        App.Repo.delete(found_incident)
+    end
+  end
+
+  @doc """
+  Deletes ended incidents older than the specified number of days.
+  Returns {deleted_incidents_count, deleted_fires_count}.
+  """
+  def delete_ended_incidents(days_old) do
+    cutoff_date = DateTime.utc_now() |> DateTime.add(-days_old, :day)
+
+    # Get incidents to be deleted and count their fires first
+    incidents_to_delete =
+      __MODULE__
+      |> where([i], i.status == "ended")
+      |> where([i], i.ended_at < ^cutoff_date)
+      |> App.Repo.all()
+
+    # Count fires that will be deleted (for reporting)
+    fire_count =
+      if length(incidents_to_delete) > 0 do
+        incident_ids = Enum.map(incidents_to_delete, & &1.id)
+
+        App.Fire
+        |> where([f], f.fire_incident_id in ^incident_ids)
+        |> App.Repo.aggregate(:count)
+      else
+        0
+      end
+
+    # Delete incidents (fires will cascade delete)
+    {deleted_count, _} =
+      __MODULE__
+      |> where([i], i.status == "ended")
+      |> where([i], i.ended_at < ^cutoff_date)
+      |> App.Repo.delete_all()
+
+    {deleted_count, fire_count}
+  end
+
   # Helper functions
   defp max_datetime(dt1, dt2) do
     case DateTime.compare(dt1, dt2) do

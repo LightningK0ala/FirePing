@@ -47,28 +47,5 @@ defmodule Mix.Tasks.Stats do
     # Total users
     total_users = Repo.aggregate(User, :count)
     Mix.shell().info("👥 Total users: #{total_users}")
-
-    # Last FireFetch completion
-    last_fire_fetch =
-      from(j in "oban_jobs",
-        where: j.worker == "Elixir.App.Workers.FireFetch" and j.state == "completed",
-        order_by: [desc: j.completed_at],
-        limit: 1,
-        select: %{completed_at: j.completed_at, meta: j.meta}
-      )
-      |> Repo.one()
-
-    case last_fire_fetch do
-      nil ->
-        Mix.shell().info("🕐 Last fire fetch: Never completed")
-
-      %{completed_at: completed_at, meta: meta} ->
-        fires_count =
-          if meta && is_map(meta),
-            do: Map.get(meta, "total_fires_inserted", "unknown"),
-            else: "unknown"
-
-        Mix.shell().info("🕐 Last fire fetch: #{completed_at} (#{fires_count} fires)")
-    end
   end
 end

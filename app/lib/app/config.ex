@@ -20,4 +20,13 @@ defmodule App.Config do
   def fire_clustering_expiry_hours do
     Application.get_env(:app, :fire_clustering_expiry_hours, 24)
   end
+
+  @doc """
+  Get the incident deletion threshold in days.
+
+  This determines how old an ended incident must be before it gets deleted.
+  """
+  def incident_deletion_threshold_days do
+    Application.get_env(:app, :incident_deletion_threshold_days, 30)
+  end
 end

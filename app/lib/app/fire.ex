@@ -38,7 +38,7 @@ defmodule App.Fire do
     field :nasa_id, :string
 
     # Associations
-    belongs_to :fire_incident, App.FireIncident
+    belongs_to :fire_incident, App.FireIncident, on_replace: :delete
 
     timestamps()
   end

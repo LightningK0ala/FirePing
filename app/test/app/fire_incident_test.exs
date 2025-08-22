@@ -386,4 +386,110 @@ defmodule App.FireIncidentTest do
       assert {:error, :no_fires} = FireIncident.recalculate_center(incident)
     end
   end
+
+  describe "delete_incident/1" do
+    test "deletes incident and all associated fires" do
+      incident = insert(:fire_incident)
+
+      # Create fires associated with this incident
+      fire1 = insert(:fire, %{fire_incident: incident})
+      fire2 = insert(:fire, %{fire_incident: incident})
+
+      # Create an unrelated fire for another incident
+      other_incident = insert(:fire_incident)
+      other_fire = insert(:fire, %{fire_incident: other_incident})
+
+      assert {:ok, _} = FireIncident.delete_incident(incident)
+
+      # Incident should be deleted
+      refute App.Repo.get(FireIncident, incident.id)
+
+      # Associated fires should be deleted
+      refute App.Repo.get(App.Fire, fire1.id)
+      refute App.Repo.get(App.Fire, fire2.id)
+
+      # Other incident and fire should remain
+      assert App.Repo.get(FireIncident, other_incident.id)
+      assert App.Repo.get(App.Fire, other_fire.id)
+    end
+
+    test "deletes incident with no associated fires" do
+      incident = insert(:fire_incident)
+
+      assert {:ok, _} = FireIncident.delete_incident(incident)
+      refute App.Repo.get(FireIncident, incident.id)
+    end
+
+    test "returns error when incident doesn't exist" do
+      non_existent_id = Ecto.UUID.generate()
+
+      assert {:error, :not_found} =
+               FireIncident.delete_incident(%FireIncident{id: non_existent_id})
+    end
+  end
+
+  describe "delete_ended_incidents/1" do
+    test "deletes ended incidents older than specified days" do
+      now = DateTime.utc_now()
+      old_time = DateTime.add(now, -10, :day)
+      recent_time = DateTime.add(now, -2, :day)
+
+      # Old ended incident (should be deleted)
+      old_ended_incident =
+        insert(:fire_incident, %{
+          status: "ended",
+          ended_at: old_time,
+          last_detected_at: old_time
+        })
+
+      old_fire = insert(:fire, %{fire_incident: old_ended_incident})
+
+      # Recent ended incident (should NOT be deleted)
+      recent_ended_incident =
+        insert(:fire_incident, %{
+          status: "ended",
+          ended_at: recent_time,
+          last_detected_at: recent_time
+        })
+
+      recent_fire = insert(:fire, %{fire_incident: recent_ended_incident})
+
+      # Active incident (should NOT be deleted)
+      active_incident =
+        insert(:fire_incident, %{
+          status: "active",
+          last_detected_at: old_time
+        })
+
+      active_fire = insert(:fire, %{fire_incident: active_incident})
+
+      # Delete incidents ended more than 7 days ago
+      {deleted_count, deleted_fire_count} = FireIncident.delete_ended_incidents(7)
+
+      assert deleted_count == 1
+      assert deleted_fire_count == 1
+
+      # Old ended incident and fire should be deleted
+      refute App.Repo.get(FireIncident, old_ended_incident.id)
+      refute App.Repo.get(App.Fire, old_fire.id)
+
+      # Recent ended incident should remain
+      assert App.Repo.get(FireIncident, recent_ended_incident.id)
+      assert App.Repo.get(App.Fire, recent_fire.id)
+
+      # Active incident should remain
+      assert App.Repo.get(FireIncident, active_incident.id)
+      assert App.Repo.get(App.Fire, active_fire.id)
+    end
+
+    test "returns zero when no ended incidents to delete" do
+      # Create only active incidents
+      insert(:fire_incident, %{status: "active"})
+
+      {deleted_count, deleted_fire_count} = FireIncident.delete_ended_incidents(30)
+
+      assert deleted_count == 0
+      assert deleted_fire_count == 0
+    end
+  end
 end
