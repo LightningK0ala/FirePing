@@ -11,7 +11,7 @@ defmodule Mix.Tasks.IncidentCleanup do
       mix incident_cleanup
       mix incident_cleanup 48
 
-  The first argument is the threshold hours (defaults to 72).
+  The first argument is the threshold hours (defaults to configured value).
   """
 
   def run(args) do
@@ -30,7 +30,7 @@ defmodule Mix.Tasks.IncidentCleanup do
           end
 
         [] ->
-          72
+          App.Config.incident_cleanup_threshold_hours()
 
         _ ->
           Mix.shell().error("Usage: mix incident_cleanup [threshold_hours]")

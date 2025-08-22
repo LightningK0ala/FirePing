@@ -224,7 +224,7 @@ defmodule App.FireIncidentTest do
         last_detected_at: old_time
       })
 
-      incidents = FireIncident.incidents_to_end(72)
+      incidents = FireIncident.incidents_to_end(24)
 
       assert length(incidents) == 1
       assert hd(incidents).id == old_incident.id

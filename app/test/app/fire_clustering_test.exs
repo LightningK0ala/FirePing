@@ -11,7 +11,7 @@ defmodule App.FireClusteringTest do
         insert(:fire, %{
           latitude: 37.7749,
           longitude: -122.4194,
-          detected_at: DateTime.add(DateTime.utc_now(), -73, :hour)
+          detected_at: DateTime.add(DateTime.utc_now(), -25, :hour)
         })
 
       old_incident = insert(:fire_incident)
@@ -419,12 +419,12 @@ defmodule App.FireClusteringTest do
     end
 
     test "respects expiry hours parameter for time-based clustering" do
-      # Create an old fire with an existing incident (older than default 72 hours)
+      # Create an old fire with an existing incident (older than default 24 hours)
       old_fire =
         insert(:fire, %{
           latitude: 37.7749,
           longitude: -122.4194,
-          detected_at: DateTime.utc_now() |> DateTime.add(-73, :hour)
+          detected_at: DateTime.utc_now() |> DateTime.add(-25, :hour)
         })
 
       old_incident = insert(:fire_incident)
@@ -438,7 +438,7 @@ defmodule App.FireClusteringTest do
           fire_incident_id: nil
         })
 
-      # With default expiry (72 hours), should create new incident since old fire is expired
+      # With default expiry (24 hours), should create new incident since old fire is expired
       assert {1, []} = Fire.process_unassigned_fires()
 
       updated_fire = App.Repo.get!(Fire, unassigned_fire.id)
@@ -725,7 +725,7 @@ defmodule App.FireClusteringTest do
 
         # Process them for clustering in the same order
         Enum.each(ordered_fires, fn fire ->
-          Fire.assign_to_incident(fire, 5000, 72)
+          Fire.assign_to_incident(fire, 5000, 24)
         end)
 
         # Verify all fires ended up in same incident regardless of processing order

@@ -5,7 +5,10 @@ defmodule App.Workers.FireClustering do
   This worker is typically enqueued after a successful FireFetch to ensure
   newly imported fires are properly assigned to fire incidents.
   """
-  use Oban.Worker, queue: :default, max_attempts: 3
+  use Oban.Worker, 
+    queue: :default, 
+    max_attempts: 3,
+    unique: [states: [:available, :executing]] # Only one FireClustering job at a time
 
   require Logger
   alias App.{Fire, Repo}
@@ -15,7 +18,7 @@ defmodule App.Workers.FireClustering do
     Logger.info("FireClustering: Starting fire incident clustering", args: args)
 
     clustering_distance = Map.get(args, "clustering_distance", 5000)
-    expiry_hours = Map.get(args, "expiry_hours", 72)
+    expiry_hours = Map.get(args, "expiry_hours", App.Config.fire_clustering_expiry_hours())
     start_time = System.monotonic_time(:millisecond)
 
     case Fire.process_unassigned_fires(
@@ -58,6 +61,19 @@ defmodule App.Workers.FireClustering do
           )
         end
 
+        # Enqueue incident cleanup after clustering is complete
+        case App.Workers.IncidentCleanup.enqueue_now() do
+          {:ok, cleanup_job} ->
+            Logger.info("FireClustering: Enqueued incident cleanup job",
+              cleanup_job_id: cleanup_job.id
+            )
+
+          {:error, reason} ->
+            Logger.warning("FireClustering: Failed to enqueue incident cleanup job",
+              reason: inspect(reason)
+            )
+        end
+
         :ok
     end
   end
@@ -77,7 +93,7 @@ defmodule App.Workers.FireClustering do
   """
   def enqueue_now(opts \\ []) do
     clustering_distance = Keyword.get(opts, :clustering_distance, 5000)
-    expiry_hours = Keyword.get(opts, :expiry_hours, 72)
+    expiry_hours = Keyword.get(opts, :expiry_hours, App.Config.fire_clustering_expiry_hours())
 
     base_meta = %{
       source: "manual",

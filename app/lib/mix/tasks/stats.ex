@@ -36,6 +36,10 @@ defmodule Mix.Tasks.Stats do
     active_incidents = FireIncident |> where([i], i.status == "active") |> Repo.aggregate(:count)
     Mix.shell().info("🚨 Active fire incidents: #{active_incidents}")
 
+    # Ended fire incidents
+    ended_incidents = FireIncident |> where([i], i.status == "ended") |> Repo.aggregate(:count)
+    Mix.shell().info("✅ Ended fire incidents: #{ended_incidents}")
+
     # Total locations
     total_locations = Repo.aggregate(Location, :count)
     Mix.shell().info("📍 Total locations: #{total_locations}")

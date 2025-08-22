@@ -29,7 +29,10 @@ end
 
 config :app,
   ecto_repos: [App.Repo],
-  generators: [timestamp_type: :utc_datetime]
+  generators: [timestamp_type: :utc_datetime],
+  # Fire incident configuration
+  incident_cleanup_threshold_hours: 24,
+  fire_clustering_expiry_hours: 24
 
 # Configures the endpoint
 config :app, AppWeb.Endpoint,
@@ -80,10 +83,9 @@ config :app, Oban,
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
     {Oban.Plugins.Cron,
      crontab: [
-       # Every 10 minutes (NASA recommendation)
-       {"*/10 * * * *", App.Workers.FireFetch},
-       # Every hour to check for incidents to end
-       {"0 * * * *", App.Workers.IncidentCleanup}
+       # Every 10 minutes (NASA recommendation) 
+       # FireFetch -> FireClustering -> IncidentCleanup chain
+       {"*/10 * * * *", App.Workers.FireFetch, max_attempts: 1}
      ]}
   ],
   queues: [default: 10]

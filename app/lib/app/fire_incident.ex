@@ -217,7 +217,8 @@ defmodule App.FireIncident do
   @doc """
   Returns incidents that should be ended (no activity for threshold hours).
   """
-  def incidents_to_end(threshold_hours \\ 72) do
+  def incidents_to_end(threshold_hours \\ nil) do
+    threshold_hours = threshold_hours || App.Config.incident_cleanup_threshold_hours()
     cutoff = DateTime.utc_now() |> DateTime.add(-threshold_hours, :hour)
 
     __MODULE__

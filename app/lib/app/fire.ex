@@ -412,7 +412,8 @@ defmodule App.Fire do
   Finds an existing incident for a new fire based on spatial clustering.
   Returns the incident_id if found, nil otherwise.
   """
-  def find_incident_for_fire(new_fire, clustering_distance_meters \\ 5000, expiry_hours \\ 72) do
+  def find_incident_for_fire(new_fire, clustering_distance_meters \\ 5000, expiry_hours \\ nil) do
+    expiry_hours = expiry_hours || App.Config.fire_clustering_expiry_hours()
     # Find fires within expiry_hours before the new fire's detection time
     # Use current time if detected_at is nil (for testing or incomplete data)
     reference_time = new_fire.detected_at || DateTime.utc_now()
@@ -462,7 +463,8 @@ defmodule App.Fire do
   @doc """
   Assigns a fire to an incident, either creating a new incident or updating an existing one.
   """
-  def assign_to_incident(fire, clustering_distance_meters \\ 5000, expiry_hours \\ 72) do
+  def assign_to_incident(fire, clustering_distance_meters \\ 5000, expiry_hours \\ nil) do
+    expiry_hours = expiry_hours || App.Config.fire_clustering_expiry_hours()
     case find_incident_for_fire(fire, clustering_distance_meters, expiry_hours) do
       nil ->
         # Create new incident
@@ -504,7 +506,7 @@ defmodule App.Fire do
   """
   def process_fires_with_clustering(nasa_data_list, opts \\ []) do
     clustering_distance = Keyword.get(opts, :clustering_distance, 5000)
-    expiry_hours = Keyword.get(opts, :expiry_hours, 72)
+    expiry_hours = Keyword.get(opts, :expiry_hours, App.Config.fire_clustering_expiry_hours())
 
     processed_data =
       nasa_data_list
@@ -594,7 +596,7 @@ defmodule App.Fire do
   """
   def process_unassigned_fires(opts \\ []) do
     clustering_distance = Keyword.get(opts, :clustering_distance, 5000)
-    expiry_hours = Keyword.get(opts, :expiry_hours, 72)
+    expiry_hours = Keyword.get(opts, :expiry_hours, App.Config.fire_clustering_expiry_hours())
 
     # Find all unassigned fires
     unassigned_fires =

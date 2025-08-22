@@ -9,7 +9,7 @@ defmodule App.Workers.IncidentCleanupTest do
 
   describe "perform/1" do
     test "marks old incidents as ended when they have no recent fires" do
-      # Create an incident with fires from 4 days ago (beyond 72 hour threshold)
+      # Create an incident with fires from 4 days ago (beyond 24 hour threshold)
       old_datetime = DateTime.utc_now() |> DateTime.add(-4, :day)
 
       # Create fires from 4 days ago and assign to incident
@@ -31,8 +31,8 @@ defmodule App.Workers.IncidentCleanupTest do
       # Verify incident starts as active
       assert Repo.get(FireIncident, incident.id).status == "active"
 
-      # Run the cleanup job with 72 hour threshold
-      assert :ok = perform_job(IncidentCleanup, %{"threshold_hours" => 72})
+      # Run the cleanup job with 24 hour threshold
+      assert :ok = perform_job(IncidentCleanup, %{"threshold_hours" => 24})
 
       # Verify incident is now ended
       updated_incident = Repo.get(FireIncident, incident.id)
@@ -41,7 +41,7 @@ defmodule App.Workers.IncidentCleanupTest do
     end
 
     test "does not mark incidents as ended when they have recent fires" do
-      # Create an incident with recent fires (within 72 hour threshold)
+      # Create an incident with recent fires (within 24 hour threshold)
       recent_datetime = DateTime.utc_now() |> DateTime.add(-1, :hour)
 
       # Create recent fires and assign to incident
@@ -63,8 +63,8 @@ defmodule App.Workers.IncidentCleanupTest do
       # Verify incident starts as active
       assert Repo.get(FireIncident, incident.id).status == "active"
 
-      # Run the cleanup job with 72 hour threshold
-      assert :ok = perform_job(IncidentCleanup, %{"threshold_hours" => 72})
+      # Run the cleanup job with 24 hour threshold
+      assert :ok = perform_job(IncidentCleanup, %{"threshold_hours" => 24})
 
       # Verify incident is still active
       updated_incident = Repo.get(FireIncident, incident.id)
@@ -91,7 +91,7 @@ defmodule App.Workers.IncidentCleanupTest do
       fire |> Ecto.Changeset.change(fire_incident_id: incident.id) |> Repo.update!()
 
       # Run the cleanup job
-      assert :ok = perform_job(IncidentCleanup, %{"threshold_hours" => 72})
+      assert :ok = perform_job(IncidentCleanup, %{"threshold_hours" => 24})
 
       # Verify incident remains ended (ended_at shouldn't change much)
       updated_incident = Repo.get(FireIncident, incident.id)
@@ -153,7 +153,7 @@ defmodule App.Workers.IncidentCleanupTest do
       recent_fire |> Ecto.Changeset.change(fire_incident_id: recent_incident.id) |> Repo.update!()
 
       # Run cleanup
-      assert :ok = perform_job(IncidentCleanup, %{"threshold_hours" => 72})
+      assert :ok = perform_job(IncidentCleanup, %{"threshold_hours" => 24})
 
       # Verify only old incident was ended
       updated_old = Repo.get(FireIncident, old_incident.id)
@@ -175,7 +175,7 @@ defmodule App.Workers.IncidentCleanupTest do
         )
 
       # Run cleanup
-      assert :ok = perform_job(IncidentCleanup, %{"threshold_hours" => 72})
+      assert :ok = perform_job(IncidentCleanup, %{"threshold_hours" => 24})
 
       # Should not affect the incident since last_detected_at is recent
       updated_incident = Repo.get(FireIncident, incident.id)
@@ -183,7 +183,7 @@ defmodule App.Workers.IncidentCleanupTest do
     end
 
     test "uses default threshold when not specified" do
-      # Create an incident with fires from 4 days ago (beyond default 72 hours)
+      # Create an incident with fires from 4 days ago (beyond default 24 hours)
       old_datetime = DateTime.utc_now() |> DateTime.add(-4, :day)
 
       fire = insert(:fire, detected_at: old_datetime)
@@ -198,7 +198,7 @@ defmodule App.Workers.IncidentCleanupTest do
       # Update fire to belong to the incident
       fire |> Ecto.Changeset.change(fire_incident_id: incident.id) |> Repo.update!()
 
-      # Run cleanup without specifying threshold (should use default 72 hours)
+      # Run cleanup without specifying threshold (should use default 24 hours)
       assert :ok = perform_job(IncidentCleanup, %{})
 
       updated_incident = Repo.get(FireIncident, incident.id)
@@ -211,7 +211,7 @@ defmodule App.Workers.IncidentCleanupTest do
       Repo.delete_all(Fire)
 
       # Run cleanup
-      assert :ok = perform_job(IncidentCleanup, %{"threshold_hours" => 72})
+      assert :ok = perform_job(IncidentCleanup, %{"threshold_hours" => 24})
 
       # Should complete successfully with no errors
     end
@@ -221,7 +221,7 @@ defmodule App.Workers.IncidentCleanupTest do
     test "enqueues an IncidentCleanup job with default threshold" do
       {:ok, job} = IncidentCleanup.enqueue_now()
 
-      assert job.args == %{"threshold_hours" => 72}
+      assert job.args == %{"threshold_hours" => 24}
       assert job.worker == "App.Workers.IncidentCleanup"
       assert job.queue == "default"
     end

@@ -5,7 +5,7 @@ defmodule AppWeb.AuthLive.Dashboard do
   def mount(_params, _session, socket) do
     # current_user is set by the on_mount hook
     locations = Location.list_for_user(socket.assigns.current_user.id)
-    fires = App.Fire.recent_fires_near_locations(locations, 24, quality: :high, limit: 1000)
+    fires = App.Fire.recent_fires_near_locations(locations, 24, quality: :high)
     incidents = App.FireIncident.incidents_from_fires(fires)
 
     socket =
@@ -174,7 +174,7 @@ defmodule AppWeb.AuthLive.Dashboard do
 
   defp reload_locations_and_fires(socket) do
     locations = Location.list_for_user(socket.assigns.current_user.id)
-    fires = App.Fire.recent_fires_near_locations(locations, 24, quality: :high, limit: 1000)
+    fires = App.Fire.recent_fires_near_locations(locations, 24, quality: :high)
     incidents = App.FireIncident.incidents_from_fires(fires)
 
     socket
@@ -633,7 +633,7 @@ defmodule AppWeb.AuthLive.Dashboard do
             <% end %>
           </div>
         </div>
-        
+
     <!-- Settings -->
         <div class="bg-white dark:bg-zinc-950 rounded-lg shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-800">
           <div class="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">

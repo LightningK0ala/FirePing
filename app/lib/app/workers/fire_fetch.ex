@@ -119,7 +119,7 @@ defmodule App.Workers.FireFetch do
     _ -> :ok
   end
 
-  defp fetch_viirs_fire_data(days_back) do
+  def fetch_viirs_fire_data(days_back) do
     Logger.info("FireFetch: Fetching from #{length(@viirs_satellites)} VIIRS satellites")
 
     # Fetch from all VIIRS satellites in parallel

@@ -3,10 +3,13 @@ defmodule App.Workers.IncidentCleanup do
   Oban worker for cleaning up fire incidents that have been inactive for too long.
 
   This worker marks incidents as "ended" when they haven't had any fire detections
-  for the configured threshold (default 72 hours). This is typically run hourly
+  for the configured threshold (default 24 hours). This is typically run hourly
   via Oban.Plugins.Cron.
   """
-  use Oban.Worker, queue: :default, max_attempts: 3
+  use Oban.Worker, 
+    queue: :default, 
+    max_attempts: 3,
+    unique: [states: [:available, :executing]] # Only one IncidentCleanup job at a time
 
   require Logger
   alias App.{FireIncident, Repo}
@@ -15,7 +18,7 @@ defmodule App.Workers.IncidentCleanup do
     args = job.args
     Logger.info("IncidentCleanup: Starting incident cleanup", args: args)
 
-    threshold_hours = Map.get(args, "threshold_hours", 72)
+    threshold_hours = Map.get(args, "threshold_hours", App.Config.incident_cleanup_threshold_hours())
     start_time = System.monotonic_time(:millisecond)
 
     case cleanup_incidents(threshold_hours) do
@@ -138,7 +141,7 @@ defmodule App.Workers.IncidentCleanup do
   Manually enqueue an incident cleanup job.
   """
   def enqueue_now(opts \\ []) do
-    threshold_hours = Keyword.get(opts, :threshold_hours, 72)
+    threshold_hours = Keyword.get(opts, :threshold_hours, App.Config.incident_cleanup_threshold_hours())
 
     base_meta = %{
       source: "manual",
