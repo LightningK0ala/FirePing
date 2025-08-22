@@ -165,8 +165,8 @@ defmodule App.FireIncident do
     new_avg_frp = if new_fire_count > 0, do: new_total_frp / new_fire_count, else: 0
 
     # Calculate new center point (weighted average)
-    total_lat = (incident.center_latitude * incident.fire_count) + fire.latitude
-    total_lng = (incident.center_longitude * incident.fire_count) + fire.longitude
+    total_lat = incident.center_latitude * incident.fire_count + fire.latitude
+    total_lng = incident.center_longitude * incident.fire_count + fire.longitude
     new_center_lat = total_lat / new_fire_count
     new_center_lng = total_lng / new_fire_count
 
@@ -204,7 +204,9 @@ defmodule App.FireIncident do
       fires ->
         {total_lat, total_lng, min_lat, max_lat, min_lng, max_lng} =
           fires
-          |> Enum.reduce({0.0, 0.0, nil, nil, nil, nil}, fn fire, {lat_acc, lng_acc, min_lat, max_lat, min_lng, max_lng} ->
+          |> Enum.reduce({0.0, 0.0, nil, nil, nil, nil}, fn fire,
+                                                            {lat_acc, lng_acc, min_lat, max_lat,
+                                                             min_lng, max_lng} ->
             {
               lat_acc + fire.latitude,
               lng_acc + fire.longitude,

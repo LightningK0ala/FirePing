@@ -183,7 +183,7 @@ defmodule App.FireIncidentTest do
       assert updated_incident.max_latitude == 38.0
       assert updated_incident.min_longitude == -123.0
       assert updated_incident.max_longitude == -122.0
-      
+
       # Center should be updated (weighted average)
       assert updated_incident.center_latitude == 37.5
       assert updated_incident.center_longitude == -122.5
@@ -369,10 +369,10 @@ defmodule App.FireIncidentTest do
       # Center should be average of fire locations
       expected_center_lat = (37.0 + 38.0 + 36.5) / 3
       expected_center_lng = (-122.0 + -123.0 + -121.5) / 3
-      
+
       assert_in_delta updated_incident.center_latitude, expected_center_lat, 0.01
       assert_in_delta updated_incident.center_longitude, expected_center_lng, 0.01
-      
+
       # Bounds should encompass all fires
       assert updated_incident.min_latitude == 36.5
       assert updated_incident.max_latitude == 38.0

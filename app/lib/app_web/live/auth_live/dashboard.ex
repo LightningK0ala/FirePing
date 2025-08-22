@@ -134,16 +134,16 @@ defmodule AppWeb.AuthLive.Dashboard do
 
   def handle_event("center_map_on_incident", params, socket) do
     incident_id = params["incident-id"]
-    
+
     # Find the incident from the already-loaded incidents in socket assigns
     incident = Enum.find(socket.assigns.incidents, fn i -> i.id == incident_id end)
-    
+
     case incident do
       nil ->
         # Fallback if incident not found
         lat = parse_float(params["lat"])
         lng = parse_float(params["lng"])
-        
+
         {:noreply,
          socket
          |> push_event("center_map", %{
@@ -153,23 +153,24 @@ defmodule AppWeb.AuthLive.Dashboard do
            incident_id: incident_id,
            type: "incident"
          })}
-      
+
       incident ->
         # Check if incident has bounds data
-        if incident.min_latitude && incident.max_latitude && incident.min_longitude && incident.max_longitude do
+        if incident.min_latitude && incident.max_latitude && incident.min_longitude &&
+             incident.max_longitude do
           # Add 10% padding to bounds
           lat_range = incident.max_latitude - incident.min_latitude
           lng_range = incident.max_longitude - incident.min_longitude
           padding_lat = lat_range * 0.1
           padding_lng = lng_range * 0.1
-          
+
           bounds = %{
             min_lat: incident.min_latitude - padding_lat,
             max_lat: incident.max_latitude + padding_lat,
             min_lng: incident.min_longitude - padding_lng,
             max_lng: incident.max_longitude + padding_lng
           }
-          
+
           {:noreply,
            socket
            |> push_event("center_map", %{
