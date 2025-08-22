@@ -11,7 +11,8 @@ defmodule AppWeb.Telemetry do
     children = [
       # Telemetry poller will execute the given period measurements
       # every 10_000ms. Learn more here: https://hexdocs.pm/telemetry_metrics
-      {:telemetry_poller, measurements: periodic_measurements(), period: 10_000}
+      {:telemetry_poller,
+       measurements: periodic_measurements(), period: 10_000, init_delay: 5_000}
       # Add reporters as children of your supervision tree.
       # {Telemetry.Metrics.ConsoleReporter, metrics: metrics()}
     ]
@@ -78,7 +79,12 @@ defmodule AppWeb.Telemetry do
       summary("vm.memory.total", unit: {:byte, :kilobyte}),
       summary("vm.total_run_queue_lengths.total"),
       summary("vm.total_run_queue_lengths.cpu"),
-      summary("vm.total_run_queue_lengths.io")
+      summary("vm.total_run_queue_lengths.io"),
+
+      # Database Size Metrics
+      last_value("app.database.size.gigabytes",
+        description: "Database size in gigabytes"
+      )
     ]
   end
 
@@ -87,6 +93,25 @@ defmodule AppWeb.Telemetry do
       # A module, function and arguments to be invoked periodically.
       # This function must call :telemetry.execute/3 and a metric must be added above.
       # {AppWeb, :count_users, []}
+      {__MODULE__, :measure_database_size, []}
     ]
+  end
+
+  def measure_database_size do
+    if Code.ensure_loaded?(App.Repo) and Process.whereis(App.Repo) do
+      try do
+        case App.Repo.query("SELECT pg_database_size(current_database()) as size") do
+          {:ok, %{rows: [[size_bytes]]}} ->
+            size_gb = size_bytes / (1024 * 1024 * 1024)
+            :telemetry.execute([:app, :database, :size], %{gigabytes: size_gb})
+
+          _error ->
+            :ok
+        end
+      catch
+        _kind, _reason ->
+          :ok
+      end
+    end
   end
 end
