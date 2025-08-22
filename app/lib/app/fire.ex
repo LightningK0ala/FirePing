@@ -252,6 +252,80 @@ defmodule App.Fire do
   end
 
   @doc """
+  Returns fires near locations with active incidents.
+
+  - `locations`: list of `%App.Location{}` with `point` and `radius`
+  - opts:
+    - `:limit` optional integer limit
+    - `:quality` optional `:all | :high` filter
+  """
+  def fires_near_locations_with_active_incidents(locations, opts \\ [])
+  def fires_near_locations_with_active_incidents([], _opts), do: []
+
+  def fires_near_locations_with_active_incidents(locations, opts) when is_list(locations) do
+    :telemetry.span(
+      [:fire, :fires_near_locations_with_active_incidents],
+      %{opts: opts, location_count: length(locations)},
+      fn ->
+        limit_count = Keyword.get(opts, :limit)
+        quality = Keyword.get(opts, :quality, :all)
+
+        # Calculate bounding box to pre-filter spatially
+        bounding_box = calculate_bounding_box(locations)
+
+        base =
+          __MODULE__
+          |> join(:left, [f], i in App.FireIncident, on: f.fire_incident_id == i.id)
+          |> where([f, i], i.status == "active")
+          # Add bounding box pre-filter to reduce spatial candidates
+          |> where([f, i], f.latitude >= ^bounding_box.min_lat)
+          |> where([f, i], f.latitude <= ^bounding_box.max_lat)
+          |> where([f, i], f.longitude >= ^bounding_box.min_lng)
+          |> where([f, i], f.longitude <= ^bounding_box.max_lng)
+
+        filtered =
+          case quality do
+            :high -> where(base, [f, i], f.confidence in ["n", "h"] and f.frp >= 5.0)
+            _ -> base
+          end
+
+        # Build OR of ST_DWithin for each location with its radius
+        location_condition =
+          Enum.reduce(locations, nil, fn loc, acc ->
+            loc_point = %Geo.Point{coordinates: {loc.longitude, loc.latitude}, srid: 4326}
+
+            cond_expr =
+              dynamic(
+                [f, i],
+                fragment(
+                  "ST_DWithin(ST_Transform(?, 3857), ST_Transform(?, 3857), ?)",
+                  f.point,
+                  ^loc_point,
+                  ^loc.radius
+                )
+              )
+
+            if acc do
+              dynamic([f, i], ^acc or ^cond_expr)
+            else
+              cond_expr
+            end
+          end)
+
+        query =
+          filtered
+          |> where(^location_condition)
+          |> order_by([f, i], desc: f.detected_at)
+
+        query = if is_integer(limit_count), do: limit(query, ^limit_count), else: query
+
+        result = App.Repo.all(query)
+        {result, %{result_count: length(result)}}
+      end
+    )
+  end
+
+  @doc """
   Returns recent fires within each of the given locations' monitoring radius.
 
   - `locations`: list of `%App.Location{}` with `point` and `radius`

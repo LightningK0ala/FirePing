@@ -258,4 +258,152 @@ defmodule App.FireTest do
       assert inserted_count == 2
     end
   end
+
+  describe "fires_near_locations_with_active_incidents/2" do
+    @tag :fires_near_locations_with_active_incidents
+    test "returns fires from active incidents near locations" do
+      user = insert(:user)
+
+      location =
+        insert(:location, user: user, latitude: 41.130, longitude: -8.628, radius: 50_000)
+
+      # Create active incident with fires
+      active_incident = insert(:fire_incident, status: "active")
+
+      # Fire near location belonging to active incident
+      near_fire_active =
+        insert(:fire,
+          latitude: 41.131,
+          longitude: -8.629,
+          fire_incident: active_incident
+        )
+
+      # Fire near location but belonging to ended incident
+      ended_incident = insert(:fire_incident, status: "ended")
+
+      near_fire_ended =
+        insert(:fire,
+          latitude: 41.132,
+          longitude: -8.630,
+          fire_incident: ended_incident
+        )
+
+      # Fire far from location
+      far_fire =
+        insert(:fire,
+          latitude: 40.416,
+          longitude: -3.703,
+          fire_incident: active_incident
+        )
+
+      # Fire with no incident
+      orphaned_fire =
+        insert(:fire,
+          latitude: 41.133,
+          longitude: -8.631
+        )
+
+      fires = Fire.fires_near_locations_with_active_incidents([location])
+
+      fire_ids = Enum.map(fires, & &1.id)
+
+      # Should include only fires from active incidents near the location
+      assert near_fire_active.id in fire_ids
+      # ended incident
+      refute near_fire_ended.id in fire_ids
+      # too far
+      refute far_fire.id in fire_ids
+      # no incident
+      refute orphaned_fire.id in fire_ids
+    end
+
+    @tag :fires_near_locations_with_active_incidents
+    test "returns empty list when no locations provided" do
+      assert Fire.fires_near_locations_with_active_incidents([]) == []
+    end
+
+    @tag :fires_near_locations_with_active_incidents
+    test "filters by quality when specified" do
+      user = insert(:user)
+
+      location =
+        insert(:location, user: user, latitude: 41.130, longitude: -8.628, radius: 50_000)
+
+      active_incident = insert(:fire_incident, status: "active")
+
+      # High quality fire
+      high_quality_fire =
+        insert(:fire,
+          latitude: 41.131,
+          longitude: -8.629,
+          fire_incident: active_incident,
+          confidence: "h",
+          frp: 10.0
+        )
+
+      # Low quality fire
+      low_quality_fire =
+        insert(:fire,
+          latitude: 41.132,
+          longitude: -8.630,
+          fire_incident: active_incident,
+          confidence: "l",
+          frp: 2.0
+        )
+
+      # Test with quality filter
+      high_quality_fires =
+        Fire.fires_near_locations_with_active_incidents([location], quality: :high)
+
+      all_fires = Fire.fires_near_locations_with_active_incidents([location], quality: :all)
+
+      high_quality_ids = Enum.map(high_quality_fires, & &1.id)
+      all_fire_ids = Enum.map(all_fires, & &1.id)
+
+      # High quality filter should exclude low-quality fire
+      assert high_quality_fire.id in high_quality_ids
+      refute low_quality_fire.id in high_quality_ids
+
+      # All quality should include both
+      assert high_quality_fire.id in all_fire_ids
+      assert low_quality_fire.id in all_fire_ids
+    end
+
+    @tag :fires_near_locations_with_active_incidents
+    test "includes fires of all ages from active incidents" do
+      user = insert(:user)
+
+      location =
+        insert(:location, user: user, latitude: 41.130, longitude: -8.628, radius: 50_000)
+
+      active_incident = insert(:fire_incident, status: "active")
+
+      # Recent fire (1 hour ago)
+      recent_fire =
+        insert(:fire,
+          latitude: 41.131,
+          longitude: -8.629,
+          fire_incident: active_incident,
+          detected_at: ~U[2025-08-07 22:00:00Z]
+        )
+
+      # Old fire (2 days ago) 
+      old_fire =
+        insert(:fire,
+          latitude: 41.132,
+          longitude: -8.630,
+          fire_incident: active_incident,
+          detected_at: ~U[2025-08-05 10:00:00Z]
+        )
+
+      with_mock(DateTime, [:passthrough], utc_now: fn -> ~U[2025-08-07 23:00:00Z] end) do
+        fires = Fire.fires_near_locations_with_active_incidents([location])
+        fire_ids = Enum.map(fires, & &1.id)
+
+        # Should include both recent and old fires from the same active incident
+        assert recent_fire.id in fire_ids
+        assert old_fire.id in fire_ids
+      end
+    end
+  end
 end

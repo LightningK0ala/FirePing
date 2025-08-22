@@ -458,16 +458,22 @@ Hooks.Map = {
           ? detectedDate.toLocaleString()
           : "N/A";
 
-      // Fire marker (red) - now added to cluster
+      // Calculate fire age in hours
+      const now = new Date();
+      const ageHours = detectedDate ? (now - detectedDate) / (1000 * 60 * 60) : 0;
+      const isRecent = ageHours <= 24; // 24 hour cutoff for recent fires
+
+      // Fire marker - color based on age and intensity
       const fireMarker = L.circleMarker(latLng, {
         radius: Math.max(4, Math.min(frp / 5, 12)), // Size based on fire power
-        color: "#dc2626",
-        fillColor: this.getFireColor(confidence, frp),
-        fillOpacity: 0.8,
+        color: isRecent ? "#dc2626" : "#6b7280", // Red border for recent, gray for old
+        fillColor: this.getFireColor(confidence, frp, isRecent),
+        fillOpacity: isRecent ? 0.8 : 0.6, // More transparent for older fires
         weight: 1,
       }).bindPopup(`
         <strong>🔥 Fire Detection</strong><br>
         <strong>Detected:</strong> ${detectedText}<br>
+        <strong>Age:</strong> ${isRecent ? `${Math.round(ageHours)}h (recent)` : `${Math.round(ageHours)}h (older)`}<br>
         <strong>Confidence:</strong> ${confidence}<br>
         <strong>Fire Power:</strong> ${frp} MW<br>
         <strong>Satellite:</strong> ${fire.satellite || "N/A"}<br>
@@ -479,6 +485,8 @@ Hooks.Map = {
         frp: frp,
         confidence: confidence,
         satellite: fire.satellite || "N/A",
+        isRecent: isRecent,
+        ageHours: ageHours,
       };
 
       this.fireCluster.addLayer(fireMarker);
@@ -603,19 +611,28 @@ Hooks.Map = {
     return null;
   },
 
-  getFireColor(confidence, frp) {
-    // Color based on confidence and fire power
+  getFireColor(confidence, frp, isRecent = true) {
+    // Return gray shades for older fires
+    if (!isRecent) {
+      if (confidence === "h" && frp > 20) return "#4b5563"; // Dark gray
+      if (confidence === "h") return "#6b7280"; // Medium gray
+      if (frp > 20) return "#6b7280"; // Medium gray
+      return "#9ca3af"; // Light gray
+    }
+    
+    // Original colors for recent fires
     if (confidence === "h" && frp > 20) return "#dc2626"; // High confidence, high power - bright red
     if (confidence === "h") return "#f97316"; // High confidence - orange
     if (frp > 20) return "#ea580c"; // High power - dark orange
     return "#fb923c"; // Normal - light orange
   },
 
-  getClusterColor(count, avgIntensity) {
-    // Calculate cluster color based on fire count and average intensity
+  getClusterColor(count, avgIntensity, recentRatio = 1.0) {
+    // Calculate cluster color based on fire count, average intensity, and recent fire ratio
     // avgIntensity is a score from 0-100 based on FRP and confidence
+    // recentRatio is 0-1, where 1.0 = all recent fires, 0 = all older fires
 
-    // Base red intensity on fire count
+    // Base intensity on fire count
     let baseIntensity;
     if (count >= 50) baseIntensity = 1.0;
     else if (count >= 20) baseIntensity = 0.9;
@@ -625,14 +642,20 @@ Hooks.Map = {
 
     // Adjust for average fire intensity (0-100 scale)
     const intensityMultiplier = 0.5 + avgIntensity / 200; // 0.5 to 1.0
-    const finalIntensity = Math.min(1.0, baseIntensity * intensityMultiplier);
+    let finalIntensity = Math.min(1.0, baseIntensity * intensityMultiplier);
 
-    // Generate red shades - darker red for higher intensity
-    const red = Math.round(139 + 116 * finalIntensity); // 139 to 255
-    const green = Math.round(26 * (1 - finalIntensity * 0.8)); // 26 to ~5
-    const blue = Math.round(26 * (1 - finalIntensity * 0.8)); // 26 to ~5
-
-    return `rgb(${red}, ${green}, ${blue})`;
+    // If cluster has at least 1 recent fire, make it red, otherwise gray
+    if (recentRatio > 0) {
+      // Has recent fires - use red tones
+      const red = Math.round(139 + 116 * finalIntensity); // 139 to 255
+      const green = Math.round(26 * (1 - finalIntensity * 0.8)); // 26 to ~5
+      const blue = Math.round(26 * (1 - finalIntensity * 0.8)); // 26 to ~5
+      return `rgb(${red}, ${green}, ${blue})`;
+    } else {
+      // No recent fires - use gray tones
+      const grayIntensity = Math.round(107 + 48 * finalIntensity); // 107 to 155 (gray range)
+      return `rgb(${grayIntensity}, ${grayIntensity}, ${grayIntensity})`;
+    }
   },
 
   calculateFireIntensity(fireData) {
@@ -659,19 +682,24 @@ Hooks.Map = {
     const markers = cluster.getAllChildMarkers();
     const count = markers.length;
 
-    // Calculate average intensity from fire data
+    // Calculate average intensity and recent fire ratio
     let totalIntensity = 0;
     let validMarkers = 0;
+    let recentCount = 0;
 
     markers.forEach((marker) => {
       if (marker.fireData) {
         totalIntensity += this.calculateFireIntensity(marker.fireData);
         validMarkers++;
+        if (marker.fireData.isRecent) {
+          recentCount++;
+        }
       }
     });
 
     const avgIntensity = validMarkers > 0 ? totalIntensity / validMarkers : 50;
-    const color = this.getClusterColor(count, avgIntensity);
+    const recentRatio = validMarkers > 0 ? recentCount / validMarkers : 0;
+    const color = this.getClusterColor(count, avgIntensity, recentRatio);
 
     // Size based on count
     let size;
