@@ -88,5 +88,7 @@ config :phoenix_live_view, :debug_heex_annotations, true
 
 # Development fire incident configuration (faster cleanup for testing)
 config :app,
-  incident_cleanup_threshold_hours: 6,  # 6 hours in dev for faster testing
-  fire_clustering_expiry_hours: 6      # 6 hours in dev for faster testing
+  # 6 hours in dev for faster testing
+  incident_cleanup_threshold_hours: 6,
+  # 6 hours in dev for faster testing
+  fire_clustering_expiry_hours: 6

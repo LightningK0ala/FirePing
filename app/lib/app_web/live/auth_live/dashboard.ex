@@ -633,7 +633,7 @@ defmodule AppWeb.AuthLive.Dashboard do
             <% end %>
           </div>
         </div>
-
+        
     <!-- Settings -->
         <div class="bg-white dark:bg-zinc-950 rounded-lg shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-800">
           <div class="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">

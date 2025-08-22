@@ -465,6 +465,7 @@ defmodule App.Fire do
   """
   def assign_to_incident(fire, clustering_distance_meters \\ 5000, expiry_hours \\ nil) do
     expiry_hours = expiry_hours || App.Config.fire_clustering_expiry_hours()
+
     case find_incident_for_fire(fire, clustering_distance_meters, expiry_hours) do
       nil ->
         # Create new incident

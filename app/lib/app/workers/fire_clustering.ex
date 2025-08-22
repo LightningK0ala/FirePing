@@ -5,10 +5,11 @@ defmodule App.Workers.FireClustering do
   This worker is typically enqueued after a successful FireFetch to ensure
   newly imported fires are properly assigned to fire incidents.
   """
-  use Oban.Worker, 
-    queue: :default, 
+  use Oban.Worker,
+    queue: :default,
     max_attempts: 3,
-    unique: [states: [:available, :executing]] # Only one FireClustering job at a time
+    # Only one FireClustering job at a time
+    unique: [states: [:available, :executing]]
 
   require Logger
   alias App.{Fire, Repo}

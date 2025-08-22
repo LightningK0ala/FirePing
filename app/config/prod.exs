@@ -12,8 +12,10 @@ config :logger, level: :info
 
 # Production fire incident configuration (standard 24-hour timeouts)
 config :app,
-  incident_cleanup_threshold_hours: 24,  # 24 hours standard
-  fire_clustering_expiry_hours: 24       # 24 hours standard
+  # 24 hours standard
+  incident_cleanup_threshold_hours: 24,
+  # 24 hours standard
+  fire_clustering_expiry_hours: 24
 
 # Runtime production configuration, including reading
 # of environment variables, is done on config/runtime.exs.

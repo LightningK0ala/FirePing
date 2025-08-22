@@ -5,7 +5,7 @@ defmodule App.Config do
 
   @doc """
   Get the incident cleanup threshold in hours.
-  
+
   This determines how long an incident can be inactive before being marked as ended.
   """
   def incident_cleanup_threshold_hours do
@@ -14,7 +14,7 @@ defmodule App.Config do
 
   @doc """
   Get the fire clustering expiry window in hours.
-  
+
   This determines how far back to look for existing incidents when clustering new fires.
   """
   def fire_clustering_expiry_hours do
