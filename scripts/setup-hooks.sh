@@ -7,31 +7,48 @@ echo "Setting up Git hooks..."
 cat > .git/hooks/pre-commit << 'EOF'
 #!/bin/sh
 
-# Pre-commit hook to format Elixir code
-echo "Running mix format..."
+# Pre-commit hook to check Elixir code formatting
+echo "Checking code formatting..."
 
-# Check if we're in a Docker environment or have mix available locally
-if command -v mix >/dev/null 2>&1 && [ -d "app" ]; then
-    # Local mix available
-    cd app && mix format
-elif command -v docker-compose >/dev/null 2>&1; then
-    # Use Docker
-    docker-compose exec app mix format 2>/dev/null || \
-    docker-compose run --rm app mix format
+# Try Docker first (more reliable in this project)
+if command -v docker-compose >/dev/null 2>&1; then
+    # Ensure services are running
+    docker-compose up -d --quiet-pull 2>/dev/null || true
+    sleep 2
+    
+    # Try exec first (faster if container is running), fallback to run
+    if docker-compose exec -T app mix format --check-formatted 2>/dev/null; then
+        echo "✅ Code formatting is correct!"
+        exit 0
+    else
+        # If exec failed, try run (handles container not running)
+        if docker-compose run --rm app mix format --check-formatted 2>/dev/null; then
+            echo "✅ Code formatting is correct!"
+            exit 0
+        else
+            echo "❌ Code is not properly formatted!"
+            echo "Run 'make format' to fix formatting issues, then commit again."
+            exit 1
+        fi
+    fi
+elif command -v mix >/dev/null 2>&1 && [ -d "app" ]; then
+    # Fallback to local mix
+    cd app && mix format --check-formatted
+    if [ $? -ne 0 ]; then
+        echo "❌ Code is not properly formatted!"
+        echo "Run 'make format' to fix formatting issues, then commit again."
+        exit 1
+    fi
+    echo "✅ Code formatting is correct!"
+    exit 0
 else
-    echo "Warning: Neither mix nor docker-compose found. Skipping format."
+    echo "Warning: Neither mix nor docker-compose found. Skipping format check."
     exit 0
 fi
-
-# Add formatted files to staging
-git add app/lib/ app/test/ 2>/dev/null || true
-
-echo "Code formatted successfully!"
-exit 0
 EOF
 
 # Make it executable
 chmod +x .git/hooks/pre-commit
 
 echo "Git hooks installed successfully!"
-echo "Your code will now be automatically formatted on commit."
+echo "Your code will now be checked for proper formatting before commits."
