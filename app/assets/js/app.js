@@ -218,11 +218,21 @@ Hooks.Map = {
         location_id,
         radius,
         type,
+        bounds,
       } = data;
 
       if (typeof latitude === "number" && typeof longitude === "number") {
-        // Center map on the location
-        this.map.setView([latitude, longitude], zoom);
+        if (bounds && type === "incident") {
+          // Use bounds to fit all fires in the incident
+          const leafletBounds = L.latLngBounds(
+            [bounds.min_lat, bounds.min_lng],
+            [bounds.max_lat, bounds.max_lng]
+          );
+          this.map.fitBounds(leafletBounds, { padding: [20, 20] });
+        } else {
+          // Fallback to center and zoom
+          this.map.setView([latitude, longitude], zoom);
+        }
       }
     });
 
@@ -460,7 +470,9 @@ Hooks.Map = {
 
       // Calculate fire age in hours
       const now = new Date();
-      const ageHours = detectedDate ? (now - detectedDate) / (1000 * 60 * 60) : 0;
+      const ageHours = detectedDate
+        ? (now - detectedDate) / (1000 * 60 * 60)
+        : 0;
       const isRecent = ageHours <= 24; // 24 hour cutoff for recent fires
 
       // Fire marker - color based on age and intensity
@@ -473,7 +485,11 @@ Hooks.Map = {
       }).bindPopup(`
         <strong>🔥 Fire Detection</strong><br>
         <strong>Detected:</strong> ${detectedText}<br>
-        <strong>Age:</strong> ${isRecent ? `${Math.round(ageHours)}h (recent)` : `${Math.round(ageHours)}h (older)`}<br>
+        <strong>Age:</strong> ${
+          isRecent
+            ? `${Math.round(ageHours)}h (recent)`
+            : `${Math.round(ageHours)}h (older)`
+        }<br>
         <strong>Confidence:</strong> ${confidence}<br>
         <strong>Fire Power:</strong> ${frp} MW<br>
         <strong>Satellite:</strong> ${fire.satellite || "N/A"}<br>
@@ -619,7 +635,7 @@ Hooks.Map = {
       if (frp > 20) return "#6b7280"; // Medium gray
       return "#9ca3af"; // Light gray
     }
-    
+
     // Original colors for recent fires
     if (confidence === "h" && frp > 20) return "#dc2626"; // High confidence, high power - bright red
     if (confidence === "h") return "#f97316"; // High confidence - orange

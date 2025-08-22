@@ -9,6 +9,10 @@ defmodule App.FireIncident do
              :status,
              :center_latitude,
              :center_longitude,
+             :min_latitude,
+             :max_latitude,
+             :min_longitude,
+             :max_longitude,
              :fire_count,
              :first_detected_at,
              :last_detected_at,
@@ -26,6 +30,12 @@ defmodule App.FireIncident do
     field :center_latitude, :float
     field :center_longitude, :float
     field :center_point, Geo.PostGIS.Geometry
+
+    # Bounding box for efficient map display
+    field :min_latitude, :float
+    field :max_latitude, :float
+    field :min_longitude, :float
+    field :max_longitude, :float
 
     # Incident metrics
     field :fire_count, :integer, default: 0
@@ -55,6 +65,10 @@ defmodule App.FireIncident do
       :status,
       :center_latitude,
       :center_longitude,
+      :min_latitude,
+      :max_latitude,
+      :min_longitude,
+      :max_longitude,
       :fire_count,
       :first_detected_at,
       :last_detected_at,
@@ -124,6 +138,10 @@ defmodule App.FireIncident do
       status: "active",
       center_latitude: fire.latitude,
       center_longitude: fire.longitude,
+      min_latitude: fire.latitude,
+      max_latitude: fire.latitude,
+      min_longitude: fire.longitude,
+      max_longitude: fire.longitude,
       fire_count: 1,
       first_detected_at: fire.detected_at,
       last_detected_at: fire.detected_at,
@@ -146,13 +164,26 @@ defmodule App.FireIncident do
     new_total_frp = (incident.total_frp || 0) + (fire.frp || 0)
     new_avg_frp = if new_fire_count > 0, do: new_total_frp / new_fire_count, else: 0
 
+    # Calculate new center point (weighted average)
+    total_lat = (incident.center_latitude * incident.fire_count) + fire.latitude
+    total_lng = (incident.center_longitude * incident.fire_count) + fire.longitude
+    new_center_lat = total_lat / new_fire_count
+    new_center_lng = total_lng / new_fire_count
+
     attrs = %{
       fire_count: new_fire_count,
       last_detected_at: max_datetime(incident.last_detected_at, fire.detected_at),
       max_frp: max_float(incident.max_frp, fire.frp),
       min_frp: min_float(incident.min_frp, fire.frp),
       avg_frp: new_avg_frp,
-      total_frp: new_total_frp
+      total_frp: new_total_frp,
+      center_latitude: new_center_lat,
+      center_longitude: new_center_lng,
+      # Expand bounds to include new fire
+      min_latitude: min_float(incident.min_latitude, fire.latitude),
+      max_latitude: max_float(incident.max_latitude, fire.latitude),
+      min_longitude: min_float(incident.min_longitude, fire.longitude),
+      max_longitude: max_float(incident.max_longitude, fire.longitude)
     }
 
     incident
@@ -161,7 +192,7 @@ defmodule App.FireIncident do
   end
 
   @doc """
-  Recalculates incident center point from all associated fires.
+  Recalculates incident center point and bounds from all associated fires.
   """
   def recalculate_center(incident) do
     fires = App.Repo.preload(incident, :fires).fires
@@ -171,10 +202,17 @@ defmodule App.FireIncident do
         {:error, :no_fires}
 
       fires ->
-        {total_lat, total_lng} =
+        {total_lat, total_lng, min_lat, max_lat, min_lng, max_lng} =
           fires
-          |> Enum.reduce({0.0, 0.0}, fn fire, {lat_acc, lng_acc} ->
-            {lat_acc + fire.latitude, lng_acc + fire.longitude}
+          |> Enum.reduce({0.0, 0.0, nil, nil, nil, nil}, fn fire, {lat_acc, lng_acc, min_lat, max_lat, min_lng, max_lng} ->
+            {
+              lat_acc + fire.latitude,
+              lng_acc + fire.longitude,
+              if(min_lat, do: min(min_lat, fire.latitude), else: fire.latitude),
+              if(max_lat, do: max(max_lat, fire.latitude), else: fire.latitude),
+              if(min_lng, do: min(min_lng, fire.longitude), else: fire.longitude),
+              if(max_lng, do: max(max_lng, fire.longitude), else: fire.longitude)
+            }
           end)
 
         fire_count = length(fires)
@@ -184,7 +222,11 @@ defmodule App.FireIncident do
         incident
         |> changeset(%{
           center_latitude: center_lat,
-          center_longitude: center_lng
+          center_longitude: center_lng,
+          min_latitude: min_lat,
+          max_latitude: max_lat,
+          min_longitude: min_lng,
+          max_longitude: max_lng
         })
         |> App.Repo.update()
     end

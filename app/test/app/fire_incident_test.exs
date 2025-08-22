@@ -107,6 +107,24 @@ defmodule App.FireIncidentTest do
       assert incident.avg_frp == 10.5
       assert incident.total_frp == 10.5
     end
+
+    test "creates incident with initial bounds from single fire" do
+      fire =
+        build(:fire, %{
+          latitude: 37.7749,
+          longitude: -122.4194,
+          detected_at: ~U[2024-01-01 12:00:00Z],
+          frp: 10.5
+        })
+
+      assert {:ok, incident} = FireIncident.create_from_fire(fire)
+
+      # Bounds should be set to the fire's coordinates (single point)
+      assert incident.min_latitude == 37.7749
+      assert incident.max_latitude == 37.7749
+      assert incident.min_longitude == -122.4194
+      assert incident.max_longitude == -122.4194
+    end
   end
 
   describe "add_fire/2" do
@@ -135,6 +153,70 @@ defmodule App.FireIncidentTest do
       assert updated_incident.min_frp == 10.0
       assert updated_incident.avg_frp == 15.0
       assert updated_incident.total_frp == 30.0
+    end
+
+    test "expands bounds when adding fire outside existing bounds" do
+      incident =
+        insert(:fire_incident, %{
+          center_latitude: 37.0,
+          center_longitude: -122.0,
+          min_latitude: 37.0,
+          max_latitude: 37.0,
+          min_longitude: -122.0,
+          max_longitude: -122.0,
+          fire_count: 1
+        })
+
+      # Add fire outside current bounds
+      new_fire =
+        build(:fire, %{
+          latitude: 38.0,
+          longitude: -123.0,
+          detected_at: ~U[2024-01-01 13:00:00Z],
+          frp: 20.0
+        })
+
+      assert {:ok, updated_incident} = FireIncident.add_fire(incident, new_fire)
+
+      # Bounds should expand to include new fire
+      assert updated_incident.min_latitude == 37.0
+      assert updated_incident.max_latitude == 38.0
+      assert updated_incident.min_longitude == -123.0
+      assert updated_incident.max_longitude == -122.0
+      
+      # Center should be updated (weighted average)
+      assert updated_incident.center_latitude == 37.5
+      assert updated_incident.center_longitude == -122.5
+    end
+
+    test "keeps bounds when adding fire inside existing bounds" do
+      incident =
+        insert(:fire_incident, %{
+          center_latitude: 37.5,
+          center_longitude: -122.5,
+          min_latitude: 37.0,
+          max_latitude: 38.0,
+          min_longitude: -123.0,
+          max_longitude: -122.0,
+          fire_count: 2
+        })
+
+      # Add fire inside current bounds
+      new_fire =
+        build(:fire, %{
+          latitude: 37.5,
+          longitude: -122.5,
+          detected_at: ~U[2024-01-01 13:00:00Z],
+          frp: 15.0
+        })
+
+      assert {:ok, updated_incident} = FireIncident.add_fire(incident, new_fire)
+
+      # Bounds should remain the same
+      assert updated_incident.min_latitude == 37.0
+      assert updated_incident.max_latitude == 38.0
+      assert updated_incident.min_longitude == -123.0
+      assert updated_incident.max_longitude == -122.0
     end
 
     test "handles nil FRP values" do
@@ -255,6 +337,47 @@ defmodule App.FireIncidentTest do
       # Center should be average of fire locations
       assert updated_incident.center_latitude == 37.5
       assert updated_incident.center_longitude == -122.5
+    end
+
+    test "recalculates center and bounds from associated fires" do
+      incident = insert(:fire_incident)
+
+      # Create fires at different locations
+      _fire1 =
+        insert(:fire, %{
+          latitude: 37.0,
+          longitude: -122.0,
+          fire_incident: incident
+        })
+
+      _fire2 =
+        insert(:fire, %{
+          latitude: 38.0,
+          longitude: -123.0,
+          fire_incident: incident
+        })
+
+      _fire3 =
+        insert(:fire, %{
+          latitude: 36.5,
+          longitude: -121.5,
+          fire_incident: incident
+        })
+
+      assert {:ok, updated_incident} = FireIncident.recalculate_center(incident)
+
+      # Center should be average of fire locations
+      expected_center_lat = (37.0 + 38.0 + 36.5) / 3
+      expected_center_lng = (-122.0 + -123.0 + -121.5) / 3
+      
+      assert_in_delta updated_incident.center_latitude, expected_center_lat, 0.01
+      assert_in_delta updated_incident.center_longitude, expected_center_lng, 0.01
+      
+      # Bounds should encompass all fires
+      assert updated_incident.min_latitude == 36.5
+      assert updated_incident.max_latitude == 38.0
+      assert updated_incident.min_longitude == -123.0
+      assert updated_incident.max_longitude == -121.5
     end
 
     test "returns error when no fires associated" do
