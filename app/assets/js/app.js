@@ -164,18 +164,27 @@ Hooks.Map = {
     }).setView([37.7749, -122.4194], 8);
 
     // Define base layers
-    const streetMap = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", {
-      attribution: "© Esri",
-    });
+    const streetMap = L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+      {
+        attribution: "© Esri",
+      }
+    );
 
-    const satelliteMap = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
-      attribution: "© Esri",
-    });
+    const satelliteMap = L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      {
+        attribution: "© Esri",
+      }
+    );
 
     // Labels overlay for satellite view (no attribution to avoid duplication)
-    const labelsOverlay = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", {
-      attribution: "",
-    });
+    const labelsOverlay = L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+      {
+        attribution: "",
+      }
+    );
 
     // Add default layer
     streetMap.addTo(this.map);
@@ -186,8 +195,11 @@ Hooks.Map = {
 
     // Custom toggle control
     const LayerToggle = L.Control.extend({
-      onAdd: function(map) {
-        const div = L.DomUtil.create('div', 'leaflet-control-layers leaflet-control');
+      onAdd: function (map) {
+        const div = L.DomUtil.create(
+          "div",
+          "leaflet-control-layers leaflet-control"
+        );
         div.innerHTML = `
           <button class="layer-toggle-btn" style="
             background: white;
@@ -199,34 +211,38 @@ Hooks.Map = {
             box-shadow: 0 1px 3px rgba(0,0,0,0.3);
           ">📍 Street</button>
         `;
-        
+
         L.DomEvent.disableClickPropagation(div);
-        
+
         return div;
-      }
+      },
     });
 
-    this.layerToggle = new LayerToggle({ position: 'topright' });
+    this.layerToggle = new LayerToggle({ position: "topright" });
     this.layerToggle.addTo(this.map);
 
     // Add NASA FIRMS attribution
-    this.map.attributionControl.addAttribution('<a href="https://firms.modaps.eosdis.nasa.gov/" target="_blank">NASA FIRMS</a>');
+    this.map.attributionControl.addAttribution(
+      '<a href="https://firms.modaps.eosdis.nasa.gov/" target="_blank">NASA FIRMS</a>'
+    );
 
     // Toggle functionality
-    const toggleBtn = this.map.getContainer().querySelector('.layer-toggle-btn');
-    toggleBtn.addEventListener('click', () => {
+    const toggleBtn = this.map
+      .getContainer()
+      .querySelector(".layer-toggle-btn");
+    toggleBtn.addEventListener("click", () => {
       if (this.currentLayer === this.streetMap) {
         this.map.removeLayer(this.streetMap);
         this.satelliteMap.addTo(this.map);
         this.labelsOverlay.addTo(this.map);
         this.currentLayer = this.satelliteMap;
-        toggleBtn.innerHTML = '🛰️ Satellite';
+        toggleBtn.innerHTML = "🛰️ Satellite";
       } else {
         this.map.removeLayer(this.satelliteMap);
         this.map.removeLayer(this.labelsOverlay);
         this.streetMap.addTo(this.map);
         this.currentLayer = this.streetMap;
-        toggleBtn.innerHTML = '📍 Street';
+        toggleBtn.innerHTML = "📍 Street";
       }
     });
 
@@ -587,7 +603,9 @@ Hooks.Map = {
         }<br>
         <strong>Source:</strong> ${this.translateSatelliteName(
           fire.satellite
-        )} satellite - ${this.translateConfidence(fire.confidence)} confidence<br>
+        )} satellite - ${this.translateConfidence(
+        fire.confidence
+      )} confidence<br>
         <strong>Fire Power:</strong> ${frp} MW<br>
         <strong>Coordinates:</strong> ${lat.toFixed(4)}, ${lng.toFixed(4)}
       `);
@@ -869,6 +887,597 @@ Hooks.Map = {
     if (radiusMeters > 5000) return 12; // > 5km
     if (radiusMeters > 2000) return 13; // > 2km
     return 14; // < 2km
+  },
+};
+
+Hooks.WebPushRegistration = {
+  mounted() {
+    console.log("WebPushRegistration hook mounted");
+
+    // Function to initialize the hook when elements are ready
+    const initializeHook = () => {
+      console.log("Initializing hook...");
+
+      const registerBtn = this.el.querySelector("#register-push-button");
+      const deviceNameInput = this.el.querySelector("#device-name");
+      const statusDiv = this.el.querySelector("#push-status");
+
+      console.log("Register button found:", !!registerBtn);
+      console.log("Device name input found:", !!deviceNameInput);
+      console.log("Status div found:", !!statusDiv);
+
+      if (!registerBtn) {
+        console.error("Register button not found, retrying...");
+        return false;
+      }
+
+      if (!statusDiv) {
+        console.error("Status div not found, retrying...");
+        return false;
+      }
+
+      // Test if status div is working
+      this.showStatus("Hook mounted - testing status display...", "info");
+
+      registerBtn.addEventListener("click", async () =>
+        this.handleRegisterClick()
+      );
+
+      return true;
+    };
+
+    // Try to initialize immediately
+    if (!initializeHook()) {
+      // If elements aren't ready, retry after a short delay
+      setTimeout(() => {
+        if (!initializeHook()) {
+          // If still not ready, retry again
+          setTimeout(initializeHook, 500);
+        }
+      }, 100);
+    }
+  },
+
+  async handleRegisterClick() {
+    const vapidKey = this.el.dataset.vapidKey;
+    const registerBtn = this.el.querySelector("#register-push-button");
+    const deviceNameInput = this.el.querySelector("#device-name");
+
+    const deviceName = deviceNameInput.value.trim();
+    if (!deviceName) {
+      this.showError("Please enter a device name");
+      return;
+    }
+
+    // Check if VAPID key is available
+    if (!vapidKey || vapidKey.trim() === "") {
+      this.showError(
+        "VAPID key not configured. Please check server configuration."
+      );
+      return;
+    }
+
+    try {
+      // Check if service worker and push messaging are supported
+      this.showStatus("Checking browser support...", "info");
+
+      if (!("serviceWorker" in navigator)) {
+        throw new Error("Service Worker is not supported in this browser");
+      }
+
+      if (!("PushManager" in window)) {
+        throw new Error("Push Manager is not supported in this browser");
+      }
+
+      if (!("Notification" in window)) {
+        throw new Error("Notifications are not supported in this browser");
+      }
+
+      // Check for HTTPS requirement on mobile
+      if (
+        window.location.protocol !== "https:" &&
+        window.location.hostname !== "localhost"
+      ) {
+        throw new Error(
+          "Push notifications require HTTPS (except on localhost)"
+        );
+      }
+
+      this.showStatus(
+        "Browser support confirmed. Requesting permission...",
+        "info"
+      );
+
+      // Add immediate debugging
+      console.log("About to check permission status...");
+      this.showStatus("About to check permission status...", "info");
+
+      registerBtn.disabled = true;
+      registerBtn.textContent = "Registering...";
+      this.hideStatus();
+
+      // Request notification permission with timeout and better error handling
+      this.showStatus("Checking notification permission...", "info");
+
+      // Check current permission status first
+      const currentPermission = Notification.permission;
+      this.showStatus(
+        `Current permission status: ${currentPermission}`,
+        "info"
+      );
+
+      // Check if we're on mobile
+      const isMobile =
+        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+          navigator.userAgent
+        );
+      this.showStatus(
+        `Device type: ${isMobile ? "Mobile" : "Desktop"}`,
+        "info"
+      );
+
+      let permission;
+      try {
+        if (currentPermission === "granted") {
+          this.showStatus(
+            "Permission already granted, proceeding...",
+            "success"
+          );
+          permission = "granted";
+          // Add a small delay to make sure the user sees this message
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        } else if (currentPermission === "denied") {
+          this.showStatus("Permission already denied by user", "error");
+          throw new Error("Notification permission was previously denied");
+        } else {
+          // Permission is "default" - need to request it
+          this.showStatus("Requesting notification permission...", "info");
+
+          // On mobile, we might need to handle this differently
+          if (isMobile) {
+            this.showStatus(
+              "Mobile device detected - permission request may take longer",
+              "info"
+            );
+          }
+
+          // Add a timeout to prevent hanging
+          const permissionPromise = Notification.requestPermission();
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(
+              () =>
+                reject(
+                  new Error("Permission request timed out after 10 seconds")
+                ),
+              10000
+            );
+          });
+
+          permission = await Promise.race([permissionPromise, timeoutPromise]);
+
+          this.showStatus(`Permission result: ${permission}`, "info");
+        }
+      } catch (error) {
+        this.showStatus(`Permission request failed: ${error.message}`, "error");
+        throw new Error(`Permission request failed: ${error.message}`);
+      }
+
+      if (permission !== "granted") {
+        this.showStatus(`Permission denied: ${permission}`, "error");
+        throw new Error(`Notification permission denied: ${permission}`);
+      }
+
+      this.showStatus(
+        "Permission granted. Registering service worker...",
+        "info"
+      );
+
+      // Register service worker
+      const registration = await this.registerServiceWorker();
+
+      // Wait for service worker to be active
+      this.showStatus("Waiting for service worker to activate...", "info");
+      if (registration.installing) {
+        this.showStatus("Service worker is installing...", "info");
+        await new Promise((resolve) => {
+          const timeout = setTimeout(() => {
+            this.showStatus(
+              "Service worker installation timed out, proceeding anyway...",
+              "error"
+            );
+            resolve();
+          }, 5000);
+
+          registration.installing.addEventListener("statechange", () => {
+            this.showStatus(
+              `Service worker state changed to: ${registration.installing.state}`,
+              "info"
+            );
+            if (registration.installing.state === "activated") {
+              this.showStatus("Service worker activated", "success");
+              clearTimeout(timeout);
+              resolve();
+            }
+          });
+        });
+      } else if (registration.waiting) {
+        this.showStatus("Service worker is waiting...", "info");
+        await new Promise((resolve) => {
+          const timeout = setTimeout(() => {
+            this.showStatus(
+              "Service worker waiting timed out, proceeding anyway...",
+              "error"
+            );
+            resolve();
+          }, 5000);
+
+          registration.waiting.addEventListener("statechange", () => {
+            this.showStatus(
+              `Service worker state changed to: ${registration.waiting.state}`,
+              "info"
+            );
+            if (registration.waiting.state === "activated") {
+              this.showStatus("Service worker activated", "success");
+              clearTimeout(timeout);
+              resolve();
+            }
+          });
+        });
+      } else if (registration.active) {
+        this.showStatus("Service worker is already active", "success");
+      }
+
+      // Check for existing subscription and handle VAPID key changes
+      this.showStatus("Checking for existing subscriptions...", "info");
+      const shouldContinue = await this.handleExistingSubscription(
+        registration,
+        vapidKey
+      );
+
+      // If service worker was unregistered, re-register it
+      if (!shouldContinue) {
+        this.showStatus(
+          "Re-registering service worker after VAPID key change...",
+          "info"
+        );
+        const newRegistration = await this.registerServiceWorker();
+
+        // Wait for the new service worker to be active
+        if (newRegistration.installing) {
+          this.showStatus(
+            "Waiting for new service worker to activate...",
+            "info"
+          );
+          await new Promise((resolve) => {
+            newRegistration.installing.addEventListener("statechange", () => {
+              if (newRegistration.installing.state === "activated") {
+                this.showStatus("New service worker activated", "info");
+                resolve();
+              }
+            });
+          });
+        }
+      }
+
+      // Subscribe to push notifications
+      this.showStatus(
+        "Preparing to subscribe to push notifications...",
+        "info"
+      );
+      let applicationServerKey;
+      try {
+        applicationServerKey = this.urlBase64ToUint8Array(vapidKey);
+      } catch (error) {
+        throw new Error("Invalid VAPID key format: " + error.message);
+      }
+
+      // Check service worker state before subscription
+      this.showStatus("Checking service worker state...", "info");
+
+      if (registration.active) {
+        this.showStatus(
+          "Service worker is active. Attempting subscription...",
+          "info"
+        );
+      } else {
+        throw new Error(
+          "Service worker is not active. Cannot subscribe to push notifications."
+        );
+      }
+
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: applicationServerKey,
+      });
+
+      // Extract subscription details
+      const subscriptionJson = subscription.toJSON();
+
+      // Send subscription data to Phoenix (target the component, not the parent LiveView)
+      this.pushEventTo(this.el.dataset.phxTarget, "register_web_push", {
+        name: deviceName,
+        endpoint: subscriptionJson.endpoint,
+        p256dh: subscriptionJson.keys.p256dh,
+        auth: subscriptionJson.keys.auth,
+        user_agent: navigator.userAgent,
+      });
+
+      // Don't show success immediately - wait for Phoenix to respond
+      // The success message will be shown via a flash message from the server
+    } catch (error) {
+      this.showError(error.message || "Failed to register device");
+    } finally {
+      registerBtn.disabled = false;
+      registerBtn.textContent = "Enable Push Notifications";
+    }
+  },
+
+  async registerServiceWorker() {
+    try {
+      this.showStatus("Registering service worker...", "info");
+
+      // Check if service worker is supported
+      if (!("serviceWorker" in navigator)) {
+        throw new Error("Service Worker not supported");
+      }
+
+      // Register the static service worker file
+      this.showStatus("Calling navigator.serviceWorker.register...", "info");
+      const registration = await navigator.serviceWorker.register("/sw.js");
+      this.showStatus("Service worker registered successfully", "info");
+
+      // Check registration state
+      this.showStatus(
+        `Service worker state: ${
+          registration.installing
+            ? registration.installing.state
+            : registration.active
+            ? "active"
+            : "unknown"
+        }`,
+        "info"
+      );
+
+      return registration;
+    } catch (error) {
+      this.showStatus(
+        `Service worker registration failed: ${error.message}`,
+        "error"
+      );
+      throw new Error(`Service worker registration failed: ${error.message}`);
+    }
+  },
+
+  async handleExistingSubscription(registration, newVapidKey) {
+    try {
+      const existingSubscription =
+        await registration.pushManager.getSubscription();
+
+      if (existingSubscription) {
+        // Store the current VAPID key in localStorage for comparison
+        const storedVapidKey = localStorage.getItem("fireping_vapid_key");
+
+        if (storedVapidKey && storedVapidKey !== newVapidKey) {
+          console.log("VAPID key changed, performing complete cleanup...");
+
+          // Unsubscribe from the old subscription
+          await existingSubscription.unsubscribe();
+
+          // Clear all caches
+          const cacheNames = await caches.keys();
+          await Promise.all(cacheNames.map((name) => caches.delete(name)));
+
+          // Clear localStorage
+          localStorage.removeItem("fireping_vapid_key");
+
+          // Unregister the service worker completely
+          await registration.unregister();
+
+          console.log(
+            "Complete cleanup performed, will re-register service worker"
+          );
+
+          // Return false to indicate we need to re-register
+          return false;
+        } else if (!storedVapidKey) {
+          console.log(
+            "No stored VAPID key found, unsubscribing existing subscription to ensure clean state..."
+          );
+
+          // Unsubscribe from existing subscription
+          await existingSubscription.unsubscribe();
+
+          // Clear all caches
+          const cacheNames = await caches.keys();
+          await Promise.all(cacheNames.map((name) => caches.delete(name)));
+
+          // Force service worker update
+          await registration.update();
+        } else {
+          // Same VAPID key, unsubscribe anyway to allow re-registration
+          console.log(
+            "Unsubscribing existing subscription to allow re-registration..."
+          );
+          await existingSubscription.unsubscribe();
+
+          // Clear all caches
+          const cacheNames = await caches.keys();
+          await Promise.all(cacheNames.map((name) => caches.delete(name)));
+
+          // Force service worker update
+          await registration.update();
+        }
+      }
+
+      // Store the new VAPID key
+      localStorage.setItem("fireping_vapid_key", newVapidKey);
+
+      console.log("VAPID key handling completed");
+      return true;
+    } catch (error) {
+      console.error("Error handling existing subscription:", error);
+      throw error;
+    }
+  },
+
+  urlBase64ToUint8Array(base64String) {
+    if (!base64String || typeof base64String !== "string") {
+      throw new Error("VAPID key must be a non-empty string");
+    }
+
+    // Add padding if needed
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding)
+      .replace(/-/g, "+")
+      .replace(/_/g, "/");
+
+    let rawData;
+    try {
+      rawData = window.atob(base64);
+    } catch (error) {
+      throw new Error("Failed to decode base64 VAPID key: " + error.message);
+    }
+
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+
+    // VAPID keys should be 65 bytes for uncompressed P-256 keys
+    if (outputArray.length !== 65) {
+      console.warn(
+        `VAPID key length is ${outputArray.length} bytes, expected 65 bytes for P-256 key`
+      );
+    }
+
+    return outputArray;
+  },
+
+  showError(message) {
+    try {
+      const statusDiv = this.el.querySelector("#push-status");
+
+      if (!statusDiv) {
+        console.error(
+          "Status div not found for error - using console fallback"
+        );
+        console.log(`[ERROR] ${message}`);
+        return;
+      }
+
+      // Clear previous content
+      statusDiv.innerHTML = "";
+
+      // Create the error message element
+      const messageDiv = document.createElement("div");
+      messageDiv.textContent = message;
+      messageDiv.className = "text-sm text-red-600 dark:text-red-400";
+
+      // Add to status div
+      statusDiv.appendChild(messageDiv);
+
+      // Safely remove hidden class
+      if (statusDiv.classList) {
+        statusDiv.classList.remove("hidden");
+      }
+    } catch (error) {
+      console.error("Error in showError:", error);
+      console.log(`[ERROR FALLBACK] ${message}`);
+    }
+  },
+
+  showSuccess(message) {
+    try {
+      const statusDiv = this.el.querySelector("#push-status");
+
+      if (!statusDiv) {
+        console.error(
+          "Status div not found for success - using console fallback"
+        );
+        console.log(`[SUCCESS] ${message}`);
+        return;
+      }
+
+      // Clear previous content
+      statusDiv.innerHTML = "";
+
+      // Create the success message element
+      const messageDiv = document.createElement("div");
+      messageDiv.textContent = message;
+      messageDiv.className = "text-sm text-green-600 dark:text-green-400";
+
+      // Add to status div
+      statusDiv.appendChild(messageDiv);
+
+      // Safely remove hidden class
+      if (statusDiv.classList) {
+        statusDiv.classList.remove("hidden");
+      }
+    } catch (error) {
+      console.error("Error in showSuccess:", error);
+      console.log(`[SUCCESS FALLBACK] ${message}`);
+    }
+  },
+
+  hideStatus() {
+    try {
+      const statusDiv = this.el.querySelector("#push-status");
+
+      if (!statusDiv) {
+        return;
+      }
+
+      // Safely add hidden class
+      if (statusDiv.classList) {
+        statusDiv.classList.add("hidden");
+      }
+    } catch (error) {
+      console.error("Error in hideStatus:", error);
+    }
+  },
+
+  showStatus(message, type = "info") {
+    console.log(`showStatus called: ${message} (${type})`);
+
+    try {
+      const statusDiv = this.el.querySelector("#push-status");
+
+      if (!statusDiv) {
+        console.error("Status div not found - using console fallback");
+        console.log(`[STATUS] ${message}`);
+        return;
+      }
+
+      // Clear previous content
+      statusDiv.innerHTML = "";
+
+      // Create the message element
+      const messageDiv = document.createElement("div");
+      messageDiv.textContent = message;
+      messageDiv.className = "text-sm";
+
+      // Apply styling based on type
+      if (type === "info") {
+        messageDiv.className += " text-blue-600 dark:text-blue-400";
+      } else if (type === "success") {
+        messageDiv.className += " text-green-600 dark:text-green-400";
+      } else if (type === "error") {
+        messageDiv.className += " text-red-600 dark:text-red-400";
+      }
+
+      // Add to status div
+      statusDiv.appendChild(messageDiv);
+
+      // Safely remove hidden class
+      if (statusDiv.classList) {
+        statusDiv.classList.remove("hidden");
+      }
+
+      console.log("Status updated successfully");
+    } catch (error) {
+      console.error("Error in showStatus:", error);
+      console.log(`[STATUS FALLBACK] ${message}`);
+    }
   },
 };
 

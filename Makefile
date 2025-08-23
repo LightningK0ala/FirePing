@@ -138,5 +138,8 @@ shell: ## Start an interactive shell in the app container
 iex: ## Start IEx (Interactive Elixir) in the app container
 	docker compose exec app iex -S mix
 
+generate-vapid: ## Generate new VAPID keys for web push notifications using web_push_elixir
+	docker compose exec app sh -c 'mix generate.vapid.keys'
+
 %:
 	@:

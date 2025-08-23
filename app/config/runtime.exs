@@ -53,6 +53,18 @@ if config_env() == :prod do
 
   config :app, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
+  # Configure VAPID keys for web push notifications
+  config :app,
+    vapid_public_key: System.get_env("VAPID_PUBLIC_KEY"),
+    vapid_private_key: System.get_env("VAPID_PRIVATE_KEY"),
+    vapid_subject: System.get_env("VAPID_SUBJECT") || "mailto:support@fireping.net"
+
+  # Configure web_push_elixir
+  config :web_push_elixir,
+    vapid_public_key: System.get_env("VAPID_PUBLIC_KEY"),
+    vapid_private_key: System.get_env("VAPID_PRIVATE_KEY"),
+    vapid_subject: System.get_env("VAPID_SUBJECT") || "mailto:support@fireping.net"
+
   config :app, AppWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
     http: [

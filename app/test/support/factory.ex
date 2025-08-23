@@ -107,4 +107,30 @@ defmodule App.Factory do
       updated_incident
     end
   end
+
+  def notification_device_factory do
+    %App.NotificationDevice{
+      name: sequence(:device_name, &"Device #{&1}"),
+      channel: "web_push",
+      active: true,
+      config: %{
+        "endpoint" => "https://fcm.googleapis.com/fcm/send/test",
+        "keys" => %{
+          "p256dh" => "test-p256dh-key",
+          "auth" => "test-auth-key"
+        }
+      },
+      user: build(:user)
+    }
+  end
+
+  def notification_factory do
+    %App.Notification{
+      title: "Test Notification",
+      body: "This is a test notification",
+      type: "test",
+      status: "pending",
+      user: build(:user)
+    }
+  end
 end

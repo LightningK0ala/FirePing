@@ -65,7 +65,8 @@ defmodule App.MixProject do
       {:httpoison, "~> 2.0"},
       {:dotenv_parser, "~> 2.0"},
       {:msgpax, "~> 2.4"},
-      {:lazy_html, ">= 0.1.0", only: :test}
+      {:lazy_html, ">= 0.1.0", only: :test},
+      {:web_push_elixir, "~> 0.4.0"}
     ]
   end
 

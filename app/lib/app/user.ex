@@ -12,6 +12,9 @@ defmodule App.User do
     field :verified_at, :utc_datetime
     field :admin, :boolean, default: false
 
+    has_many :notification_devices, App.NotificationDevice
+    has_many :notifications, App.Notification
+
     timestamps(type: :utc_datetime)
   end
 
