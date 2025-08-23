@@ -163,10 +163,72 @@ Hooks.Map = {
       gestureHandling: true,
     }).setView([37.7749, -122.4194], 8);
 
-    // Add OpenStreetMap tile layer
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "© OpenStreetMap contributors",
-    }).addTo(this.map);
+    // Define base layers
+    const streetMap = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", {
+      attribution: "© Esri",
+    });
+
+    const satelliteMap = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+      attribution: "© Esri",
+    });
+
+    // Labels overlay for satellite view (no attribution to avoid duplication)
+    const labelsOverlay = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", {
+      attribution: "",
+    });
+
+    // Add default layer
+    streetMap.addTo(this.map);
+    this.currentLayer = streetMap;
+    this.streetMap = streetMap;
+    this.satelliteMap = satelliteMap;
+    this.labelsOverlay = labelsOverlay;
+
+    // Custom toggle control
+    const LayerToggle = L.Control.extend({
+      onAdd: function(map) {
+        const div = L.DomUtil.create('div', 'leaflet-control-layers leaflet-control');
+        div.innerHTML = `
+          <button class="layer-toggle-btn" style="
+            background: white;
+            border: 2px solid #ccc;
+            border-radius: 4px;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-size: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+          ">📍 Street</button>
+        `;
+        
+        L.DomEvent.disableClickPropagation(div);
+        
+        return div;
+      }
+    });
+
+    this.layerToggle = new LayerToggle({ position: 'topright' });
+    this.layerToggle.addTo(this.map);
+
+    // Add NASA FIRMS attribution
+    this.map.attributionControl.addAttribution('<a href="https://firms.modaps.eosdis.nasa.gov/" target="_blank">NASA FIRMS</a>');
+
+    // Toggle functionality
+    const toggleBtn = this.map.getContainer().querySelector('.layer-toggle-btn');
+    toggleBtn.addEventListener('click', () => {
+      if (this.currentLayer === this.streetMap) {
+        this.map.removeLayer(this.streetMap);
+        this.satelliteMap.addTo(this.map);
+        this.labelsOverlay.addTo(this.map);
+        this.currentLayer = this.satelliteMap;
+        toggleBtn.innerHTML = '🛰️ Satellite';
+      } else {
+        this.map.removeLayer(this.satelliteMap);
+        this.map.removeLayer(this.labelsOverlay);
+        this.streetMap.addTo(this.map);
+        this.currentLayer = this.streetMap;
+        toggleBtn.innerHTML = '📍 Street';
+      }
+    });
 
     // Handle map data updates from LiveView
     this.handleEvent("update_map_data", (data) => {
@@ -208,6 +270,39 @@ Hooks.Map = {
       this.updateMapData(locations, processedFires);
     });
 
+    // Handle map centering from LiveView (for incident and location clicks)
+    this.handleEvent("center_map", (data) => {
+      const {
+        latitude,
+        longitude,
+        zoom = 14,
+        incident_id,
+        location_id,
+        radius,
+        type,
+        bounds,
+      } = data;
+
+      if (typeof latitude === "number" && typeof longitude === "number") {
+        if (bounds && type === "incident") {
+          // Use bounds to fit all fires in the incident
+          const leafletBounds = L.latLngBounds(
+            [bounds.min_lat, bounds.min_lng],
+            [bounds.max_lat, bounds.max_lng]
+          );
+          this.map.fitBounds(leafletBounds, { padding: [20, 20] });
+        } else {
+          // Fallback to center and zoom
+          this.map.setView([latitude, longitude], zoom);
+        }
+      }
+    });
+
+    // Handle form cancellation - clear draft elements
+    this.handleEvent("clear_radius_preview", () => {
+      this.clearDraftElements();
+    });
+
     // Initialize with empty locations and fire cluster
     this.markersLayer = L.layerGroup().addTo(this.map);
     this.fireCluster = L.markerClusterGroup({
@@ -215,6 +310,7 @@ Hooks.Map = {
       spiderfyOnMaxZoom: true,
       showCoverageOnHover: false,
       zoomToBoundsOnClick: true,
+      iconCreateFunction: (cluster) => this.createFireClusterIcon(cluster),
     }).addTo(this.map);
 
     // Listen for draft update requests (from slider or external triggers)
@@ -394,6 +490,34 @@ Hooks.Map = {
     });
   },
 
+  translateSatelliteName(satelliteCode) {
+    switch (satelliteCode) {
+      case "N21":
+        return "NOAA-21";
+      case "N20":
+        return "NOAA-20";
+      case "NPP":
+        return "S-NPP";
+      case "N":
+        return "S-NPP"; // Suomi NPP satellite
+      default:
+        return satelliteCode || "Unknown";
+    }
+  },
+
+  translateConfidence(confidence) {
+    switch (String(confidence || "").toLowerCase()) {
+      case "h":
+        return "High";
+      case "n":
+        return "Normal";
+      case "l":
+        return "Low";
+      default:
+        return "Unknown";
+    }
+  },
+
   updateMapData(locations, fires) {
     // Clear existing markers and circles
     this.markersLayer.clearLayers();
@@ -439,21 +563,43 @@ Hooks.Map = {
           ? detectedDate.toLocaleString()
           : "N/A";
 
-      // Fire marker (red) - now added to cluster
+      // Calculate fire age in hours
+      const now = new Date();
+      const ageHours = detectedDate
+        ? (now - detectedDate) / (1000 * 60 * 60)
+        : 0;
+      const isRecent = ageHours <= 24; // 24 hour cutoff for recent fires
+
+      // Fire marker - color based on age and intensity
       const fireMarker = L.circleMarker(latLng, {
-        radius: Math.max(4, Math.min(frp / 5, 12)), // Size based on fire power
-        color: "#dc2626",
-        fillColor: this.getFireColor(confidence, frp),
-        fillOpacity: 0.8,
+        radius: Math.max(6, Math.min(frp / 4, 14)), // Size based on fire power, bigger for easier clicking
+        color: isRecent ? "#dc2626" : "#6b7280", // Red border for recent, gray for old
+        fillColor: this.getFireColor(confidence, frp, isRecent),
+        fillOpacity: isRecent ? 0.8 : 0.6, // More transparent for older fires
         weight: 1,
       }).bindPopup(`
-        <strong>🔥 Fire Detection</strong><br>
+        <strong>🔥 Fire</strong><br>
         <strong>Detected:</strong> ${detectedText}<br>
-        <strong>Confidence:</strong> ${confidence}<br>
+        <strong>Age:</strong> ${
+          isRecent
+            ? `${Math.round(ageHours)}h (recent)`
+            : `${Math.round(ageHours)}h (older)`
+        }<br>
+        <strong>Source:</strong> ${this.translateSatelliteName(
+          fire.satellite
+        )} satellite - ${this.translateConfidence(fire.confidence)} confidence<br>
         <strong>Fire Power:</strong> ${frp} MW<br>
-        <strong>Satellite:</strong> ${fire.satellite || "N/A"}<br>
         <strong>Coordinates:</strong> ${lat.toFixed(4)}, ${lng.toFixed(4)}
       `);
+
+      // Store fire data on marker for cluster calculations
+      fireMarker.fireData = {
+        frp: frp,
+        confidence: confidence,
+        satellite: fire.satellite || "N/A",
+        isRecent: isRecent,
+        ageHours: ageHours,
+      };
 
       this.fireCluster.addLayer(fireMarker);
     });
@@ -566,6 +712,24 @@ Hooks.Map = {
     } catch (_err) {}
   },
 
+  clearDraftElements() {
+    // Clear draft circle
+    try {
+      if (this.draftCircle) {
+        this.map.removeLayer(this.draftCircle);
+        this.draftCircle = null;
+      }
+    } catch (_err) {}
+
+    // Clear selection marker
+    try {
+      if (this.selectionMarker) {
+        this.map.removeLayer(this.selectionMarker);
+        this.selectionMarker = null;
+      }
+    } catch (_err) {}
+  },
+
   getEditingId() {
     const attr = this.el.dataset.editingId;
     if (attr && attr !== "" && attr !== "nil") return attr;
@@ -577,12 +741,124 @@ Hooks.Map = {
     return null;
   },
 
-  getFireColor(confidence, frp) {
-    // Color based on confidence and fire power
+  getFireColor(confidence, frp, isRecent = true) {
+    // Return gray shades for older fires
+    if (!isRecent) {
+      if (confidence === "h" && frp > 20) return "#4b5563"; // Dark gray
+      if (confidence === "h") return "#6b7280"; // Medium gray
+      if (frp > 20) return "#6b7280"; // Medium gray
+      return "#9ca3af"; // Light gray
+    }
+
+    // Original colors for recent fires
     if (confidence === "h" && frp > 20) return "#dc2626"; // High confidence, high power - bright red
     if (confidence === "h") return "#f97316"; // High confidence - orange
     if (frp > 20) return "#ea580c"; // High power - dark orange
     return "#fb923c"; // Normal - light orange
+  },
+
+  getClusterColor(count, avgIntensity, recentRatio = 1.0) {
+    // Calculate cluster color based on fire count, average intensity, and recent fire ratio
+    // avgIntensity is a score from 0-100 based on FRP and confidence
+    // recentRatio is 0-1, where 1.0 = all recent fires, 0 = all older fires
+
+    // Base intensity on fire count
+    let baseIntensity;
+    if (count >= 50) baseIntensity = 1.0;
+    else if (count >= 20) baseIntensity = 0.9;
+    else if (count >= 10) baseIntensity = 0.8;
+    else if (count >= 5) baseIntensity = 0.7;
+    else baseIntensity = 0.6;
+
+    // Adjust for average fire intensity (0-100 scale)
+    const intensityMultiplier = 0.5 + avgIntensity / 200; // 0.5 to 1.0
+    let finalIntensity = Math.min(1.0, baseIntensity * intensityMultiplier);
+
+    // If cluster has at least 1 recent fire, make it red, otherwise gray
+    if (recentRatio > 0) {
+      // Has recent fires - use red tones
+      const red = Math.round(139 + 116 * finalIntensity); // 139 to 255
+      const green = Math.round(26 * (1 - finalIntensity * 0.8)); // 26 to ~5
+      const blue = Math.round(26 * (1 - finalIntensity * 0.8)); // 26 to ~5
+      return `rgb(${red}, ${green}, ${blue})`;
+    } else {
+      // No recent fires - use gray tones
+      const grayIntensity = Math.round(107 + 48 * finalIntensity); // 107 to 155 (gray range)
+      return `rgb(${grayIntensity}, ${grayIntensity}, ${grayIntensity})`;
+    }
+  },
+
+  calculateFireIntensity(fireData) {
+    // Calculate intensity score (0-100) based on FRP and confidence
+    let score = 0;
+
+    // FRP contribution (0-70 points)
+    const frp = fireData.frp || 0;
+    if (frp > 50) score += 70;
+    else if (frp > 20) score += 50 + ((frp - 20) / 30) * 20;
+    else if (frp > 5) score += 30 + ((frp - 5) / 15) * 20;
+    else score += (frp / 5) * 30;
+
+    // Confidence contribution (0-30 points)
+    const confidence = fireData.confidence || "n";
+    if (confidence === "h") score += 30;
+    else if (confidence === "n") score += 15;
+    else score += 5; // low confidence
+
+    return Math.min(100, score);
+  },
+
+  createFireClusterIcon(cluster) {
+    const markers = cluster.getAllChildMarkers();
+    const count = markers.length;
+
+    // Calculate average intensity and recent fire ratio
+    let totalIntensity = 0;
+    let validMarkers = 0;
+    let recentCount = 0;
+
+    markers.forEach((marker) => {
+      if (marker.fireData) {
+        totalIntensity += this.calculateFireIntensity(marker.fireData);
+        validMarkers++;
+        if (marker.fireData.isRecent) {
+          recentCount++;
+        }
+      }
+    });
+
+    const avgIntensity = validMarkers > 0 ? totalIntensity / validMarkers : 50;
+    const recentRatio = validMarkers > 0 ? recentCount / validMarkers : 0;
+    const color = this.getClusterColor(count, avgIntensity, recentRatio);
+
+    // Size based on count
+    let size;
+    if (count >= 100) size = 50;
+    else if (count >= 50) size = 45;
+    else if (count >= 20) size = 40;
+    else if (count >= 10) size = 35;
+    else size = 30;
+
+    return L.divIcon({
+      html: `<div style="
+        width: ${size}px;
+        height: ${size}px;
+        background-color: ${color};
+        border: 2px solid #7f1d1d;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+        font-size: ${Math.max(12, size * 0.4)}px;
+        text-shadow: 1px 1px 1px rgba(0,0,0,0.7);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      ">🔥</div>`,
+      className: "fire-cluster-icon",
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
+    });
   },
 
   getZoomForRadius(radiusMeters) {

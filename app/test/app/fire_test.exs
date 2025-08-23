@@ -105,7 +105,7 @@ defmodule App.FireTest do
       assert is_binary(nasa_id)
       # latitude
       assert nasa_id =~ "66.5967"
-      # longitude  
+      # longitude
       assert nasa_id =~ "76.9926"
       # date
       assert nasa_id =~ "2025-08-07"
@@ -197,7 +197,7 @@ defmodule App.FireTest do
           longitude: -8.629
         )
 
-      # Fire in Spain (far from sample location)  
+      # Fire in Spain (far from sample location)
       far_fire =
         insert(:fire,
           latitude: 40.416,
@@ -256,6 +256,245 @@ defmodule App.FireTest do
 
       # Should insert 2 unique records, skip 1 duplicate
       assert inserted_count == 2
+    end
+  end
+
+  describe "fires_near_locations/2" do
+    @tag :fires_near_locations
+    test "returns fires from active incidents near locations" do
+      user = insert(:user)
+
+      location =
+        insert(:location, user: user, latitude: 41.130, longitude: -8.628, radius: 50_000)
+
+      # Create active incident with fires
+      active_incident = insert(:fire_incident, status: "active")
+
+      # Fire near location belonging to active incident
+      near_fire_active =
+        insert(:fire,
+          latitude: 41.131,
+          longitude: -8.629,
+          fire_incident: active_incident
+        )
+
+      # Fire near location but belonging to ended incident
+      ended_incident = insert(:fire_incident, status: "ended")
+
+      near_fire_ended =
+        insert(:fire,
+          latitude: 41.132,
+          longitude: -8.630,
+          fire_incident: ended_incident
+        )
+
+      # Fire far from location
+      far_fire =
+        insert(:fire,
+          latitude: 40.416,
+          longitude: -3.703,
+          fire_incident: active_incident
+        )
+
+      # Fire with no incident
+      orphaned_fire =
+        insert(:fire,
+          latitude: 41.133,
+          longitude: -8.631
+        )
+
+      # Test default behavior (all statuses)
+      all_fires = Fire.fires_near_locations([location])
+      all_fire_ids = Enum.map(all_fires, & &1.id)
+
+      # Test active only
+      active_fires = Fire.fires_near_locations([location], status: "active")
+      active_fire_ids = Enum.map(active_fires, & &1.id)
+
+      # Default should include fires from all incident statuses near the location
+      assert near_fire_active.id in all_fire_ids
+      assert near_fire_ended.id in all_fire_ids
+      # Should not include fires without incidents or too far away
+      refute far_fire.id in all_fire_ids
+      refute orphaned_fire.id in all_fire_ids
+
+      # Active filter should only include active fires
+      assert near_fire_active.id in active_fire_ids
+      refute near_fire_ended.id in active_fire_ids
+      refute far_fire.id in active_fire_ids
+      refute orphaned_fire.id in active_fire_ids
+    end
+
+    @tag :fires_near_locations
+    test "returns empty list when no locations provided" do
+      assert Fire.fires_near_locations([]) == []
+    end
+
+    @tag :fires_near_locations
+    test "filters by quality when specified" do
+      user = insert(:user)
+
+      location =
+        insert(:location, user: user, latitude: 41.130, longitude: -8.628, radius: 50_000)
+
+      active_incident = insert(:fire_incident, status: "active")
+
+      # High quality fire
+      high_quality_fire =
+        insert(:fire,
+          latitude: 41.131,
+          longitude: -8.629,
+          fire_incident: active_incident,
+          confidence: "h",
+          frp: 10.0
+        )
+
+      # Low quality fire
+      low_quality_fire =
+        insert(:fire,
+          latitude: 41.132,
+          longitude: -8.630,
+          fire_incident: active_incident,
+          confidence: "l",
+          frp: 2.0
+        )
+
+      # Test with quality filter
+      high_quality_fires =
+        Fire.fires_near_locations([location], quality: :high)
+
+      all_fires = Fire.fires_near_locations([location], quality: :all)
+
+      high_quality_ids = Enum.map(high_quality_fires, & &1.id)
+      all_fire_ids = Enum.map(all_fires, & &1.id)
+
+      # High quality filter should exclude low-quality fire
+      assert high_quality_fire.id in high_quality_ids
+      refute low_quality_fire.id in high_quality_ids
+
+      # All quality should include both
+      assert high_quality_fire.id in all_fire_ids
+      assert low_quality_fire.id in all_fire_ids
+    end
+
+    @tag :fires_near_locations
+    test "includes fires of all ages from active incidents" do
+      user = insert(:user)
+
+      location =
+        insert(:location, user: user, latitude: 41.130, longitude: -8.628, radius: 50_000)
+
+      active_incident = insert(:fire_incident, status: "active")
+
+      # Recent fire (1 hour ago)
+      recent_fire =
+        insert(:fire,
+          latitude: 41.131,
+          longitude: -8.629,
+          fire_incident: active_incident,
+          detected_at: ~U[2025-08-07 22:00:00Z]
+        )
+
+      # Old fire (2 days ago)
+      old_fire =
+        insert(:fire,
+          latitude: 41.132,
+          longitude: -8.630,
+          fire_incident: active_incident,
+          detected_at: ~U[2025-08-05 10:00:00Z]
+        )
+
+      with_mock(DateTime, [:passthrough], utc_now: fn -> ~U[2025-08-07 23:00:00Z] end) do
+        fires = Fire.fires_near_locations([location])
+        fire_ids = Enum.map(fires, & &1.id)
+
+        # Should include both recent and old fires from the same active incident
+        assert recent_fire.id in fire_ids
+        assert old_fire.id in fire_ids
+      end
+    end
+
+    @tag :fires_near_locations
+    test "accepts optional incident status parameter" do
+      user = insert(:user)
+
+      location =
+        insert(:location, user: user, latitude: 41.130, longitude: -8.628, radius: 50_000)
+
+      # Create incidents with different statuses
+      active_incident = insert(:fire_incident, status: "active")
+      ended_incident = insert(:fire_incident, status: "ended")
+
+      # Fires from different incident statuses
+      active_fire =
+        insert(:fire,
+          latitude: 41.131,
+          longitude: -8.629,
+          fire_incident: active_incident
+        )
+
+      ended_fire =
+        insert(:fire,
+          latitude: 41.132,
+          longitude: -8.630,
+          fire_incident: ended_incident
+        )
+
+      # Test with specific status filter
+      active_fires = Fire.fires_near_locations([location], status: "active")
+      ended_fires = Fire.fires_near_locations([location], status: "ended")
+      all_fires = Fire.fires_near_locations([location], status: :all)
+
+      active_fire_ids = Enum.map(active_fires, & &1.id)
+      ended_fire_ids = Enum.map(ended_fires, & &1.id)
+      all_fire_ids = Enum.map(all_fires, & &1.id)
+
+      # Active filter should only include active fires
+      assert active_fire.id in active_fire_ids
+      refute ended_fire.id in active_fire_ids
+
+      # Ended filter should only include ended fires
+      assert ended_fire.id in ended_fire_ids
+      refute active_fire.id in ended_fire_ids
+
+      # All filter should include both
+      assert active_fire.id in all_fire_ids
+      assert ended_fire.id in all_fire_ids
+    end
+
+    @tag :fires_near_locations
+    test "defaults to all incidents when no status specified" do
+      user = insert(:user)
+
+      location =
+        insert(:location, user: user, latitude: 41.130, longitude: -8.628, radius: 50_000)
+
+      # Create incidents with different statuses
+      active_incident = insert(:fire_incident, status: "active")
+      ended_incident = insert(:fire_incident, status: "ended")
+
+      # Fires from different incident statuses
+      active_fire =
+        insert(:fire,
+          latitude: 41.131,
+          longitude: -8.629,
+          fire_incident: active_incident
+        )
+
+      ended_fire =
+        insert(:fire,
+          latitude: 41.132,
+          longitude: -8.630,
+          fire_incident: ended_incident
+        )
+
+      # Default behavior should include all fires
+      fires = Fire.fires_near_locations([location])
+      fire_ids = Enum.map(fires, & &1.id)
+
+      # Should include fires from both active and ended incidents
+      assert active_fire.id in fire_ids
+      assert ended_fire.id in fire_ids
     end
   end
 end

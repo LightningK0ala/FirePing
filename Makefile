@@ -22,7 +22,7 @@ build: ## Build and start all services with Docker Compose
 	docker compose up -d --build
 
 logs: ## Show logs from all Docker services
-	docker compose logs -f
+	docker compose logs --tail 50 -f
 
 dev: ## Start Phoenix development server with Docker
 	docker compose up
@@ -99,8 +99,40 @@ fire-debug: ## Debug NASA FIRMS API response (usage: make fire-debug or make fir
 fire-count: ## Show fire database statistics
 	docker compose exec app sh -c 'mix fire_count'
 
+stats: ## Show basic database statistics
+	docker compose exec app sh -c 'mix stats'
+
 fire-test: ## Test FireFetch logic synchronously with detailed logging
 	docker compose exec app sh -c 'mix fire_test'
+
+fire-cluster: ## Manually trigger fire clustering job (usage: make fire-cluster or make fire-cluster distance=3000 expiry=48)
+	@if [ -n "$(distance)" ] && [ -n "$(expiry)" ]; then \
+		docker compose exec app sh -c 'mix fire_cluster $(distance) $(expiry)'; \
+	elif [ -n "$(distance)" ]; then \
+		docker compose exec app sh -c 'mix fire_cluster $(distance)'; \
+	else \
+		docker compose exec app sh -c 'mix fire_cluster'; \
+	fi
+
+incident-cleanup: ## Manually trigger incident cleanup job (usage: make incident-cleanup or make incident-cleanup hours=48)
+	@if [ -n "$(hours)" ]; then \
+		docker compose exec app sh -c 'mix incident_cleanup $(hours)'; \
+	else \
+		docker compose exec app sh -c 'mix incident_cleanup'; \
+	fi
+
+incident-deletion: ## Manually trigger incident deletion job (usage: make incident-deletion or make incident-deletion days=60)
+	@if [ -n "$(days)" ]; then \
+		docker compose exec app sh -c 'mix incident_deletion $(days)'; \
+	else \
+		docker compose exec app sh -c 'mix incident_deletion'; \
+	fi
+
+shell: ## Start an interactive shell in the app container
+	docker compose exec app sh
+
+iex: ## Start IEx (Interactive Elixir) in the app container
+	docker compose exec app iex -S mix
 
 %:
 	@:

@@ -1,0 +1,495 @@
+defmodule App.FireIncidentTest do
+  use App.DataCase, async: true
+  import App.Factory
+
+  alias App.FireIncident
+
+  describe "changeset/2" do
+    test "valid changeset with required fields" do
+      attrs = %{
+        status: "active",
+        center_latitude: 37.7749,
+        center_longitude: -122.4194,
+        first_detected_at: ~U[2024-01-01 12:00:00Z],
+        last_detected_at: ~U[2024-01-01 12:00:00Z]
+      }
+
+      changeset = FireIncident.changeset(%FireIncident{}, attrs)
+
+      assert changeset.valid?
+      # Status should use default value since it wasn't provided
+      assert get_field(changeset, :status) == "active"
+      assert get_change(changeset, :center_latitude) == 37.7749
+      assert get_change(changeset, :center_longitude) == -122.4194
+      # Check that center_point is automatically created
+      assert get_change(changeset, :center_point) != nil
+    end
+
+    test "requires coordinates and timestamps" do
+      changeset = FireIncident.changeset(%FireIncident{}, %{})
+
+      refute changeset.valid?
+
+      assert errors_on(changeset) == %{
+               center_latitude: ["can't be blank"],
+               center_longitude: ["can't be blank"],
+               first_detected_at: ["can't be blank"],
+               last_detected_at: ["can't be blank"]
+             }
+    end
+
+    test "validates status inclusion" do
+      attrs = %{
+        status: "invalid_status",
+        center_latitude: 37.7749,
+        center_longitude: -122.4194,
+        first_detected_at: ~U[2024-01-01 12:00:00Z],
+        last_detected_at: ~U[2024-01-01 12:00:00Z]
+      }
+
+      changeset = FireIncident.changeset(%FireIncident{}, attrs)
+
+      refute changeset.valid?
+      assert errors_on(changeset) == %{status: ["is invalid"]}
+    end
+
+    test "validates latitude range" do
+      attrs = %{
+        status: "active",
+        center_latitude: 91.0,
+        center_longitude: -122.4194,
+        first_detected_at: ~U[2024-01-01 12:00:00Z],
+        last_detected_at: ~U[2024-01-01 12:00:00Z]
+      }
+
+      changeset = FireIncident.changeset(%FireIncident{}, attrs)
+
+      refute changeset.valid?
+      assert errors_on(changeset) == %{center_latitude: ["must be between -90 and 90"]}
+    end
+
+    test "validates longitude range" do
+      attrs = %{
+        status: "active",
+        center_latitude: 37.7749,
+        center_longitude: 181.0,
+        first_detected_at: ~U[2024-01-01 12:00:00Z],
+        last_detected_at: ~U[2024-01-01 12:00:00Z]
+      }
+
+      changeset = FireIncident.changeset(%FireIncident{}, attrs)
+
+      refute changeset.valid?
+      assert errors_on(changeset) == %{center_longitude: ["must be between -180 and 180"]}
+    end
+  end
+
+  describe "create_from_fire/1" do
+    test "creates incident from fire detection" do
+      fire =
+        build(:fire, %{
+          latitude: 37.7749,
+          longitude: -122.4194,
+          detected_at: ~U[2024-01-01 12:00:00Z],
+          frp: 10.5
+        })
+
+      assert {:ok, incident} = FireIncident.create_from_fire(fire)
+
+      assert incident.status == "active"
+      assert incident.center_latitude == 37.7749
+      assert incident.center_longitude == -122.4194
+      assert incident.fire_count == 1
+      assert incident.first_detected_at == ~U[2024-01-01 12:00:00Z]
+      assert incident.last_detected_at == ~U[2024-01-01 12:00:00Z]
+      assert incident.max_frp == 10.5
+      assert incident.min_frp == 10.5
+      assert incident.avg_frp == 10.5
+      assert incident.total_frp == 10.5
+    end
+
+    test "creates incident with initial bounds from single fire" do
+      fire =
+        build(:fire, %{
+          latitude: 37.7749,
+          longitude: -122.4194,
+          detected_at: ~U[2024-01-01 12:00:00Z],
+          frp: 10.5
+        })
+
+      assert {:ok, incident} = FireIncident.create_from_fire(fire)
+
+      # Bounds should be set to the fire's coordinates (single point)
+      assert incident.min_latitude == 37.7749
+      assert incident.max_latitude == 37.7749
+      assert incident.min_longitude == -122.4194
+      assert incident.max_longitude == -122.4194
+    end
+  end
+
+  describe "add_fire/2" do
+    test "updates incident metrics when fire is added" do
+      incident =
+        insert(:fire_incident, %{
+          fire_count: 1,
+          last_detected_at: ~U[2024-01-01 12:00:00Z],
+          max_frp: 10.0,
+          min_frp: 10.0,
+          avg_frp: 10.0,
+          total_frp: 10.0
+        })
+
+      new_fire =
+        build(:fire, %{
+          detected_at: ~U[2024-01-01 13:00:00Z],
+          frp: 20.0
+        })
+
+      assert {:ok, updated_incident} = FireIncident.add_fire(incident, new_fire)
+
+      assert updated_incident.fire_count == 2
+      assert updated_incident.last_detected_at == ~U[2024-01-01 13:00:00Z]
+      assert updated_incident.max_frp == 20.0
+      assert updated_incident.min_frp == 10.0
+      assert updated_incident.avg_frp == 15.0
+      assert updated_incident.total_frp == 30.0
+    end
+
+    test "expands bounds when adding fire outside existing bounds" do
+      incident =
+        insert(:fire_incident, %{
+          center_latitude: 37.0,
+          center_longitude: -122.0,
+          min_latitude: 37.0,
+          max_latitude: 37.0,
+          min_longitude: -122.0,
+          max_longitude: -122.0,
+          fire_count: 1
+        })
+
+      # Add fire outside current bounds
+      new_fire =
+        build(:fire, %{
+          latitude: 38.0,
+          longitude: -123.0,
+          detected_at: ~U[2024-01-01 13:00:00Z],
+          frp: 20.0
+        })
+
+      assert {:ok, updated_incident} = FireIncident.add_fire(incident, new_fire)
+
+      # Bounds should expand to include new fire
+      assert updated_incident.min_latitude == 37.0
+      assert updated_incident.max_latitude == 38.0
+      assert updated_incident.min_longitude == -123.0
+      assert updated_incident.max_longitude == -122.0
+
+      # Center should be updated (weighted average)
+      assert updated_incident.center_latitude == 37.5
+      assert updated_incident.center_longitude == -122.5
+    end
+
+    test "keeps bounds when adding fire inside existing bounds" do
+      incident =
+        insert(:fire_incident, %{
+          center_latitude: 37.5,
+          center_longitude: -122.5,
+          min_latitude: 37.0,
+          max_latitude: 38.0,
+          min_longitude: -123.0,
+          max_longitude: -122.0,
+          fire_count: 2
+        })
+
+      # Add fire inside current bounds
+      new_fire =
+        build(:fire, %{
+          latitude: 37.5,
+          longitude: -122.5,
+          detected_at: ~U[2024-01-01 13:00:00Z],
+          frp: 15.0
+        })
+
+      assert {:ok, updated_incident} = FireIncident.add_fire(incident, new_fire)
+
+      # Bounds should remain the same
+      assert updated_incident.min_latitude == 37.0
+      assert updated_incident.max_latitude == 38.0
+      assert updated_incident.min_longitude == -123.0
+      assert updated_incident.max_longitude == -122.0
+    end
+
+    test "handles nil FRP values" do
+      incident =
+        insert(:fire_incident, %{
+          fire_count: 1,
+          total_frp: 10.0,
+          avg_frp: 10.0
+        })
+
+      new_fire = build(:fire, %{frp: nil})
+
+      assert {:ok, updated_incident} = FireIncident.add_fire(incident, new_fire)
+
+      assert updated_incident.fire_count == 2
+      assert updated_incident.total_frp == 10.0
+      assert updated_incident.avg_frp == 5.0
+    end
+  end
+
+  describe "mark_as_ended/1" do
+    test "marks incident as ended with timestamp" do
+      incident = insert(:fire_incident, %{status: "active"})
+
+      assert {:ok, ended_incident} = FireIncident.mark_as_ended(incident)
+
+      assert ended_incident.status == "ended"
+      assert ended_incident.ended_at != nil
+      assert DateTime.diff(ended_incident.ended_at, DateTime.utc_now(), :second) < 5
+    end
+  end
+
+  describe "active_incidents_within_hours/1" do
+    test "returns only active incidents within time range" do
+      now = DateTime.utc_now()
+      recent_time = DateTime.add(now, -2, :hour)
+      old_time = DateTime.add(now, -25, :hour)
+
+      # Active incident within range
+      recent_incident =
+        insert(:fire_incident, %{
+          status: "active",
+          last_detected_at: recent_time
+        })
+
+      # Active incident outside range
+      insert(:fire_incident, %{
+        status: "active",
+        last_detected_at: old_time
+      })
+
+      # Ended incident within range
+      insert(:fire_incident, %{
+        status: "ended",
+        last_detected_at: recent_time
+      })
+
+      incidents = FireIncident.active_incidents_within_hours(24)
+
+      assert length(incidents) == 1
+      assert hd(incidents).id == recent_incident.id
+    end
+  end
+
+  describe "incidents_to_end/1" do
+    test "returns active incidents past threshold" do
+      now = DateTime.utc_now()
+      recent_time = DateTime.add(now, -2, :hour)
+      old_time = DateTime.add(now, -73, :hour)
+
+      # Recent active incident (should not be ended)
+      insert(:fire_incident, %{
+        status: "active",
+        last_detected_at: recent_time
+      })
+
+      # Old active incident (should be ended)
+      old_incident =
+        insert(:fire_incident, %{
+          status: "active",
+          last_detected_at: old_time
+        })
+
+      # Already ended incident
+      insert(:fire_incident, %{
+        status: "ended",
+        last_detected_at: old_time
+      })
+
+      incidents = FireIncident.incidents_to_end(24)
+
+      assert length(incidents) == 1
+      assert hd(incidents).id == old_incident.id
+    end
+  end
+
+  describe "recalculate_center/1" do
+    test "recalculates center from associated fires" do
+      incident = insert(:fire_incident)
+
+      # Create fires at different locations
+      _fire1 =
+        insert(:fire, %{
+          latitude: 37.0,
+          longitude: -122.0,
+          fire_incident: incident
+        })
+
+      _fire2 =
+        insert(:fire, %{
+          latitude: 38.0,
+          longitude: -123.0,
+          fire_incident: incident
+        })
+
+      assert {:ok, updated_incident} = FireIncident.recalculate_center(incident)
+
+      # Center should be average of fire locations
+      assert updated_incident.center_latitude == 37.5
+      assert updated_incident.center_longitude == -122.5
+    end
+
+    test "recalculates center and bounds from associated fires" do
+      incident = insert(:fire_incident)
+
+      # Create fires at different locations
+      _fire1 =
+        insert(:fire, %{
+          latitude: 37.0,
+          longitude: -122.0,
+          fire_incident: incident
+        })
+
+      _fire2 =
+        insert(:fire, %{
+          latitude: 38.0,
+          longitude: -123.0,
+          fire_incident: incident
+        })
+
+      _fire3 =
+        insert(:fire, %{
+          latitude: 36.5,
+          longitude: -121.5,
+          fire_incident: incident
+        })
+
+      assert {:ok, updated_incident} = FireIncident.recalculate_center(incident)
+
+      # Center should be average of fire locations
+      expected_center_lat = (37.0 + 38.0 + 36.5) / 3
+      expected_center_lng = (-122.0 + -123.0 + -121.5) / 3
+
+      assert_in_delta updated_incident.center_latitude, expected_center_lat, 0.01
+      assert_in_delta updated_incident.center_longitude, expected_center_lng, 0.01
+
+      # Bounds should encompass all fires
+      assert updated_incident.min_latitude == 36.5
+      assert updated_incident.max_latitude == 38.0
+      assert updated_incident.min_longitude == -123.0
+      assert updated_incident.max_longitude == -121.5
+    end
+
+    test "returns error when no fires associated" do
+      incident = insert(:fire_incident)
+
+      assert {:error, :no_fires} = FireIncident.recalculate_center(incident)
+    end
+  end
+
+  describe "delete_incident/1" do
+    test "deletes incident and all associated fires" do
+      incident = insert(:fire_incident)
+
+      # Create fires associated with this incident
+      fire1 = insert(:fire, %{fire_incident: incident})
+      fire2 = insert(:fire, %{fire_incident: incident})
+
+      # Create an unrelated fire for another incident
+      other_incident = insert(:fire_incident)
+      other_fire = insert(:fire, %{fire_incident: other_incident})
+
+      assert {:ok, _} = FireIncident.delete_incident(incident)
+
+      # Incident should be deleted
+      refute App.Repo.get(FireIncident, incident.id)
+
+      # Associated fires should be deleted
+      refute App.Repo.get(App.Fire, fire1.id)
+      refute App.Repo.get(App.Fire, fire2.id)
+
+      # Other incident and fire should remain
+      assert App.Repo.get(FireIncident, other_incident.id)
+      assert App.Repo.get(App.Fire, other_fire.id)
+    end
+
+    test "deletes incident with no associated fires" do
+      incident = insert(:fire_incident)
+
+      assert {:ok, _} = FireIncident.delete_incident(incident)
+      refute App.Repo.get(FireIncident, incident.id)
+    end
+
+    test "returns error when incident doesn't exist" do
+      non_existent_id = Ecto.UUID.generate()
+
+      assert {:error, :not_found} =
+               FireIncident.delete_incident(%FireIncident{id: non_existent_id})
+    end
+  end
+
+  describe "delete_ended_incidents/1" do
+    test "deletes ended incidents older than specified days" do
+      now = DateTime.utc_now()
+      old_time = DateTime.add(now, -10, :day)
+      recent_time = DateTime.add(now, -2, :day)
+
+      # Old ended incident (should be deleted)
+      old_ended_incident =
+        insert(:fire_incident, %{
+          status: "ended",
+          ended_at: old_time,
+          last_detected_at: old_time
+        })
+
+      old_fire = insert(:fire, %{fire_incident: old_ended_incident})
+
+      # Recent ended incident (should NOT be deleted)
+      recent_ended_incident =
+        insert(:fire_incident, %{
+          status: "ended",
+          ended_at: recent_time,
+          last_detected_at: recent_time
+        })
+
+      recent_fire = insert(:fire, %{fire_incident: recent_ended_incident})
+
+      # Active incident (should NOT be deleted)
+      active_incident =
+        insert(:fire_incident, %{
+          status: "active",
+          last_detected_at: old_time
+        })
+
+      active_fire = insert(:fire, %{fire_incident: active_incident})
+
+      # Delete incidents ended more than 7 days ago
+      {deleted_count, deleted_fire_count} = FireIncident.delete_ended_incidents(7)
+
+      assert deleted_count == 1
+      assert deleted_fire_count == 1
+
+      # Old ended incident and fire should be deleted
+      refute App.Repo.get(FireIncident, old_ended_incident.id)
+      refute App.Repo.get(App.Fire, old_fire.id)
+
+      # Recent ended incident should remain
+      assert App.Repo.get(FireIncident, recent_ended_incident.id)
+      assert App.Repo.get(App.Fire, recent_fire.id)
+
+      # Active incident should remain
+      assert App.Repo.get(FireIncident, active_incident.id)
+      assert App.Repo.get(App.Fire, active_fire.id)
+    end
+
+    test "returns zero when no ended incidents to delete" do
+      # Create only active incidents
+      insert(:fire_incident, %{status: "active"})
+
+      {deleted_count, deleted_fire_count} = FireIncident.delete_ended_incidents(30)
+
+      assert deleted_count == 0
+      assert deleted_fire_count == 0
+    end
+  end
+end
