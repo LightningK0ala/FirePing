@@ -62,8 +62,8 @@ db-down: ## Stop database container
 
 db-reset: ## Reset database (drop, create, migrate) for both dev and test
 	docker compose stop app
-	docker compose exec postgres psql -U $${POSTGRES_USER:-postgres} -c "DROP DATABASE IF EXISTS app_dev;"
-	docker compose exec postgres psql -U $${POSTGRES_USER:-postgres} -c "DROP DATABASE IF EXISTS app_test;"
+	docker compose exec postgres psql -U $${POSTGRES_USER:-postgres} -d postgres -c "DROP DATABASE IF EXISTS app_dev;"
+	docker compose exec postgres psql -U $${POSTGRES_USER:-postgres} -d postgres -c "DROP DATABASE IF EXISTS app_test;"
 	docker compose start app
 	docker compose exec app sh -c 'mix ecto.create && mix ecto.migrate'
 	docker compose exec app sh -c 'MIX_ENV=test mix ecto.create && MIX_ENV=test mix ecto.migrate'
