@@ -55,44 +55,6 @@ defmodule AppWeb.AuthLive.Dashboard do
     {:noreply, socket_with_loading}
   end
 
-  def handle_info({:complete_create, params}, socket) do
-    radius_meters =
-      cond do
-        is_binary(params["radius"]) and params["radius"] != "" ->
-          String.to_integer(params["radius"])
-
-        is_binary(params["radius_km"]) and params["radius_km"] != "" ->
-          params["radius_km"] |> parse_float() |> Kernel.*(1000.0) |> Float.round() |> trunc()
-
-        true ->
-          50_000
-      end
-
-    attrs = %{
-      "name" => params["name"],
-      "latitude" => parse_float(params["latitude"]),
-      "longitude" => parse_float(params["longitude"]),
-      "radius" => radius_meters
-    }
-
-    case Location.create_location(socket.assigns.current_user, attrs) do
-      {:ok, _location} ->
-        {:noreply,
-         socket
-         |> reload_locations_and_fires()
-         |> assign(:show_form, false)
-         |> assign(:creating_location, false)
-         |> put_flash(:info, "Location added successfully!")}
-
-      {:error, changeset} ->
-        {:noreply,
-         socket
-         |> assign(:form, to_form(changeset))
-         |> assign(:creating_location, false)
-         |> put_flash(:error, "Error creating location")}
-    end
-  end
-
   def handle_event("delete_location", %{"id" => id}, socket) do
     # Set loading state and send immediate response
     socket_with_loading = assign(socket, :deleting_location_id, id)
@@ -101,24 +63,6 @@ defmodule AppWeb.AuthLive.Dashboard do
     send(self(), {:complete_delete, id})
 
     {:noreply, socket_with_loading}
-  end
-
-  def handle_info({:complete_delete, id}, socket) do
-    location = App.Repo.get(Location, id)
-
-    case Location.delete_location(location) do
-      {:ok, _} ->
-        {:noreply,
-         socket
-         |> reload_locations_and_fires()
-         |> assign(:deleting_location_id, nil)}
-
-      {:error, _} ->
-        {:noreply,
-         socket
-         |> assign(:deleting_location_id, nil)
-         |> put_flash(:error, "Error deleting location")}
-    end
   end
 
   def handle_event("start_edit_location", %{"id" => id}, socket) do
@@ -167,50 +111,6 @@ defmodule AppWeb.AuthLive.Dashboard do
     send(self(), {:complete_update, params})
 
     {:noreply, socket_with_loading}
-  end
-
-  def handle_info({:complete_update, params}, socket) do
-    id = params["_id"]
-    location = App.Repo.get(Location, id)
-
-    radius_meters =
-      cond do
-        is_binary(params["radius"]) and params["radius"] != "" ->
-          String.to_integer(params["radius"])
-
-        is_binary(params["radius_km"]) and params["radius_km"] != "" ->
-          params["radius_km"] |> parse_float() |> Kernel.*(1000.0) |> Float.round() |> trunc()
-
-        true ->
-          location.radius
-      end
-
-    attrs = %{
-      "name" => params["name"],
-      "latitude" => parse_float(params["latitude"]),
-      "longitude" => parse_float(params["longitude"]),
-      "radius" => radius_meters
-    }
-
-    case Location.update_location(location, attrs) do
-      {:ok, _updated} ->
-        {:noreply,
-         socket
-         |> reload_locations_and_fires()
-         |> assign(:editing_location_id, nil)
-         |> assign(:updating_location_id, nil)
-         |> assign(:updating_location_data, nil)
-         |> push_event("clear_radius_preview", %{})
-         |> put_flash(:info, "Location updated successfully!")}
-
-      {:error, changeset} ->
-        {:noreply,
-         socket
-         |> assign(:form, to_form(changeset))
-         |> assign(:updating_location_id, nil)
-         |> assign(:updating_location_data, nil)
-         |> put_flash(:error, "Error updating location")}
-    end
   end
 
   def handle_event("center_map_on_incident", params, socket) do
@@ -298,6 +198,106 @@ defmodule AppWeb.AuthLive.Dashboard do
      })}
   end
 
+  def handle_info({:complete_create, params}, socket) do
+    radius_meters =
+      cond do
+        is_binary(params["radius"]) and params["radius"] != "" ->
+          String.to_integer(params["radius"])
+
+        is_binary(params["radius_km"]) and params["radius_km"] != "" ->
+          params["radius_km"] |> parse_float() |> Kernel.*(1000.0) |> Float.round() |> trunc()
+
+        true ->
+          50_000
+      end
+
+    attrs = %{
+      "name" => params["name"],
+      "latitude" => parse_float(params["latitude"]),
+      "longitude" => parse_float(params["longitude"]),
+      "radius" => radius_meters
+    }
+
+    case Location.create_location(socket.assigns.current_user, attrs) do
+      {:ok, _location} ->
+        {:noreply,
+         socket
+         |> reload_locations_and_fires()
+         |> assign(:show_form, false)
+         |> assign(:creating_location, false)
+         |> put_flash(:info, "Location added successfully!")}
+
+      {:error, changeset} ->
+        {:noreply,
+         socket
+         |> assign(:form, to_form(changeset))
+         |> assign(:creating_location, false)
+         |> put_flash(:error, "Error creating location")}
+    end
+  end
+
+  def handle_info({:complete_delete, id}, socket) do
+    location = App.Repo.get(Location, id)
+
+    case Location.delete_location(location) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> reload_locations_and_fires()
+         |> assign(:deleting_location_id, nil)}
+
+      {:error, _} ->
+        {:noreply,
+         socket
+         |> assign(:deleting_location_id, nil)
+         |> put_flash(:error, "Error deleting location")}
+    end
+  end
+
+  def handle_info({:complete_update, params}, socket) do
+    id = params["_id"]
+    location = App.Repo.get(Location, id)
+
+    radius_meters =
+      cond do
+        is_binary(params["radius"]) and params["radius"] != "" ->
+          String.to_integer(params["radius"])
+
+        is_binary(params["radius_km"]) and params["radius_km"] != "" ->
+          params["radius_km"] |> parse_float() |> Kernel.*(1000.0) |> Float.round() |> trunc()
+
+        true ->
+          location.radius
+      end
+
+    attrs = %{
+      "name" => params["name"],
+      "latitude" => parse_float(params["latitude"]),
+      "longitude" => parse_float(params["longitude"]),
+      "radius" => radius_meters
+    }
+
+    case Location.update_location(location, attrs) do
+      {:ok, _updated} ->
+        {:noreply,
+         socket
+         |> reload_locations_and_fires()
+         |> assign(:editing_location_id, nil)
+         |> assign(:updating_location_id, nil)
+         |> assign(:updating_location_data, nil)
+         |> push_event("clear_radius_preview", %{})
+         |> put_flash(:info, "Location updated successfully!")}
+
+      {:error, changeset} ->
+        {:noreply,
+         socket
+         |> assign(:form, to_form(changeset))
+         |> assign(:updating_location_id, nil)
+         |> assign(:updating_location_data, nil)
+         |> put_flash(:error, "Error updating location")}
+    end
+  end
+
   defp reload_locations_and_fires(socket) do
     locations = Location.list_for_user(socket.assigns.current_user.id)
     fires = App.Fire.fires_near_locations(locations, quality: :all, status: :all)
@@ -355,10 +355,6 @@ defmodule AppWeb.AuthLive.Dashboard do
         # Also enhance the fallback data
         push_event(socket, "update_map_data", %{locations: locations, fires: enhanced_fires})
     end
-  end
-
-  defp format_datetime(datetime) do
-    Calendar.strftime(datetime, "%b %d, %Y at %I:%M %p")
   end
 
   defp time_ago(datetime) do
@@ -839,7 +835,7 @@ defmodule AppWeb.AuthLive.Dashboard do
                             {Float.round(location.latitude, 3)}, {Float.round(location.longitude, 3)}
                           </p>
                           <p class="text-xs text-zinc-500 dark:text-zinc-500 mt-1">
-                            {div(location.radius, 1000)}km radius • 👆 Click to view on map
+                            {div(location.radius, 1000)}km radius
                           </p>
                         </div>
                         <div class="flex items-center gap-1">
