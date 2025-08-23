@@ -324,18 +324,8 @@ defmodule AppWeb.AuthLive.Dashboard do
   end
 
   defp push_data_to_map(socket, locations, fires) do
-    # Enhance fire data with translated information
-    enhanced_fires =
-      Enum.map(fires, fn fire ->
-        Map.merge(fire, %{
-          confidence_text: translate_confidence(fire.confidence),
-          satellite_info: format_satellite_info(fire),
-          popup_title: "Fire"
-        })
-      end)
-
     # Use MessagePack for compact fire data transmission
-    compact_fires = App.Fire.to_compact_msgpack(enhanced_fires)
+    compact_fires = App.Fire.to_compact_msgpack(fires)
 
     case Msgpax.pack(compact_fires) do
       {:ok, msgpack_iodata} ->
@@ -352,8 +342,7 @@ defmodule AppWeb.AuthLive.Dashboard do
       {:error, reason} ->
         # Fallback to regular JSON if MessagePack fails
         IO.puts("MessagePack encoding failed: #{inspect(reason)}")
-        # Also enhance the fallback data
-        push_event(socket, "update_map_data", %{locations: locations, fires: enhanced_fires})
+        push_event(socket, "update_map_data", %{locations: locations, fires: fires})
     end
   end
 
@@ -392,21 +381,6 @@ defmodule AppWeb.AuthLive.Dashboard do
       # Use the actual location data
       location
     end
-  end
-
-  defp translate_confidence(confidence) do
-    case String.downcase(confidence || "") do
-      "h" -> "High"
-      "n" -> "Nominal"
-      "l" -> "Low"
-      _ -> "Unknown"
-    end
-  end
-
-  defp format_satellite_info(fire) do
-    satellite = fire.satellite || "Unknown"
-    confidence = translate_confidence(fire.confidence)
-    "#{satellite} satellite - #{confidence} confidence"
   end
 
   defp calculate_zoom_for_radius(radius_meters) do
@@ -897,7 +871,7 @@ defmodule AppWeb.AuthLive.Dashboard do
                 Active Fire Incidents
               </div>
               <div class="text-sm text-zinc-500 dark:text-zinc-400">
-                Currently burning in your monitored areas
+                Fire activity detected in the last 24 hours
               </div>
             <% end %>
           </div>

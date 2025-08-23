@@ -405,9 +405,6 @@ Hooks.Map = {
       "confidence",
       "frp",
       "satellite",
-      "confidence_text",
-      "satellite_info",
-      "popup_title",
     ];
 
     return compactData.data.map((fireArray) => {
@@ -424,6 +421,34 @@ Hooks.Map = {
       });
       return fireObj;
     });
+  },
+
+  translateSatelliteName(satelliteCode) {
+    switch (satelliteCode) {
+      case "N21":
+        return "NOAA-21";
+      case "N20":
+        return "NOAA-20";
+      case "NPP":
+        return "S-NPP";
+      case "N":
+        return "S-NPP"; // Suomi NPP satellite
+      default:
+        return satelliteCode || "Unknown";
+    }
+  },
+
+  translateConfidence(confidence) {
+    switch (String(confidence || "").toLowerCase()) {
+      case "h":
+        return "High";
+      case "n":
+        return "Normal";
+      case "l":
+        return "Low";
+      default:
+        return "Unknown";
+    }
   },
 
   updateMapData(locations, fires) {
@@ -480,20 +505,22 @@ Hooks.Map = {
 
       // Fire marker - color based on age and intensity
       const fireMarker = L.circleMarker(latLng, {
-        radius: Math.max(4, Math.min(frp / 5, 12)), // Size based on fire power
+        radius: Math.max(6, Math.min(frp / 4, 14)), // Size based on fire power, bigger for easier clicking
         color: isRecent ? "#dc2626" : "#6b7280", // Red border for recent, gray for old
         fillColor: this.getFireColor(confidence, frp, isRecent),
         fillOpacity: isRecent ? 0.8 : 0.6, // More transparent for older fires
         weight: 1,
       }).bindPopup(`
-        <strong>🔥 ${fire.popup_title || "Fire"}</strong><br>
+        <strong>🔥 Fire</strong><br>
         <strong>Detected:</strong> ${detectedText}<br>
         <strong>Age:</strong> ${
           isRecent
             ? `${Math.round(ageHours)}h (recent)`
             : `${Math.round(ageHours)}h (older)`
         }<br>
-        <strong>Source:</strong> ${fire.satellite_info || `${fire.satellite || "Unknown"} satellite - ${fire.confidence_text || fire.confidence || "Unknown"} confidence`}<br>
+        <strong>Source:</strong> ${this.translateSatelliteName(
+          fire.satellite
+        )} satellite - ${this.translateConfidence(fire.confidence)} confidence<br>
         <strong>Fire Power:</strong> ${frp} MW<br>
         <strong>Coordinates:</strong> ${lat.toFixed(4)}, ${lng.toFixed(4)}
       `);
