@@ -85,15 +85,3 @@ config :phoenix, :plug_init_mode, :runtime
 
 # Include HEEx debug annotations as HTML comments in rendered markup
 config :phoenix_live_view, :debug_heex_annotations, true
-
-# Configure VAPID keys for web push notifications in development
-config :app,
-  vapid_public_key: System.get_env("VAPID_PUBLIC_KEY"),
-  vapid_private_key: System.get_env("VAPID_PRIVATE_KEY"),
-  vapid_subject: System.get_env("VAPID_SUBJECT") || "mailto:support@fireping.net"
-
-# Configure web_push_elixir
-config :web_push_elixir,
-  vapid_public_key: System.get_env("VAPID_PUBLIC_KEY"),
-  vapid_private_key: System.get_env("VAPID_PRIVATE_KEY"),
-  vapid_subject: System.get_env("VAPID_SUBJECT") || "mailto:support@fireping.net"

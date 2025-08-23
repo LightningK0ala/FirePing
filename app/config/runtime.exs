@@ -20,6 +20,18 @@ if System.get_env("PHX_SERVER") do
   config :app, AppWeb.Endpoint, server: true
 end
 
+# Configure VAPID keys for web push notifications
+config :app,
+  vapid_public_key: System.get_env("VAPID_PUBLIC_KEY"),
+  vapid_private_key: System.get_env("VAPID_PRIVATE_KEY"),
+  vapid_subject: System.get_env("VAPID_SUBJECT") || "mailto:support@fireping.net"
+
+# Configure web_push_elixir
+config :web_push_elixir,
+  vapid_public_key: System.get_env("VAPID_PUBLIC_KEY"),
+  vapid_private_key: System.get_env("VAPID_PRIVATE_KEY"),
+  vapid_subject: System.get_env("VAPID_SUBJECT") || "mailto:support@fireping.net"
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||
@@ -52,18 +64,6 @@ if config_env() == :prod do
   port = String.to_integer(System.get_env("PORT") || "4000")
 
   config :app, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
-
-  # Configure VAPID keys for web push notifications
-  config :app,
-    vapid_public_key: System.get_env("VAPID_PUBLIC_KEY"),
-    vapid_private_key: System.get_env("VAPID_PRIVATE_KEY"),
-    vapid_subject: System.get_env("VAPID_SUBJECT") || "mailto:support@fireping.net"
-
-  # Configure web_push_elixir
-  config :web_push_elixir,
-    vapid_public_key: System.get_env("VAPID_PUBLIC_KEY"),
-    vapid_private_key: System.get_env("VAPID_PRIVATE_KEY"),
-    vapid_subject: System.get_env("VAPID_SUBJECT") || "mailto:support@fireping.net"
 
   config :app, AppWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
