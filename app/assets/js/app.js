@@ -405,6 +405,9 @@ Hooks.Map = {
       "confidence",
       "frp",
       "satellite",
+      "confidence_text",
+      "satellite_info",
+      "popup_title",
     ];
 
     return compactData.data.map((fireArray) => {
@@ -483,16 +486,15 @@ Hooks.Map = {
         fillOpacity: isRecent ? 0.8 : 0.6, // More transparent for older fires
         weight: 1,
       }).bindPopup(`
-        <strong>🔥 Fire Detection</strong><br>
+        <strong>🔥 ${fire.popup_title || "Fire"}</strong><br>
         <strong>Detected:</strong> ${detectedText}<br>
         <strong>Age:</strong> ${
           isRecent
             ? `${Math.round(ageHours)}h (recent)`
             : `${Math.round(ageHours)}h (older)`
         }<br>
-        <strong>Confidence:</strong> ${confidence}<br>
+        <strong>Source:</strong> ${fire.satellite_info || `${fire.satellite || "Unknown"} satellite - ${fire.confidence_text || fire.confidence || "Unknown"} confidence`}<br>
         <strong>Fire Power:</strong> ${frp} MW<br>
-        <strong>Satellite:</strong> ${fire.satellite || "N/A"}<br>
         <strong>Coordinates:</strong> ${lat.toFixed(4)}, ${lng.toFixed(4)}
       `);
 
