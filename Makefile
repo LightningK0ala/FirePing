@@ -1,3 +1,7 @@
+# Include environment variables from .env file
+-include .env
+export
+
 .PHONY: help setup dev spec-dev test test-watch clean db-up db-ready db-down db-reset format check import-fires admin-grant admin-revoke admin-list fire-fetch fire-debug fire-count fire-test up down build logs
 
 help: ## Show this help message
@@ -31,10 +35,10 @@ spec-dev: ## Start spec documentation server
 	mdbook serve spec
 
 test: db-ready ## Run tests
-	docker compose exec app sh -c 'MIX_ENV=test DATABASE_URL=ecto://postgres:postgres@postgres:5432/app_test mix test'
+	docker compose exec app sh -c 'MIX_ENV=test DATABASE_URL=ecto://$${POSTGRES_USER:-postgres}:$${POSTGRES_PASSWORD:-postgres}@postgres:5432/app_test mix test'
 
 test-watch: ## Run tests in watch mode
-	docker compose exec app sh -c 'MIX_ENV=test DATABASE_URL=ecto://postgres:postgres@postgres:5432/app_test mix test.watch'
+	docker compose exec app sh -c 'MIX_ENV=test DATABASE_URL=ecto://$${POSTGRES_USER:-postgres}:$${POSTGRES_PASSWORD:-postgres}@postgres:5432/app_test mix test.watch'
 
 format: ## Format code
 	docker compose exec app sh -c 'mix format'
@@ -51,15 +55,15 @@ db-up: ## Start database container
 db-ready: ## Ensure database container is up and ready to accept connections
 	@docker compose up -d postgres
 	@echo "Waiting for Postgres to be ready..."
-	@until docker compose exec -T postgres pg_isready -U postgres >/dev/null 2>&1; do sleep 1; done; echo ready
+	@until docker compose exec -T postgres pg_isready -U $${POSTGRES_USER:-postgres} >/dev/null 2>&1; do sleep 1; done; echo ready
 
 db-down: ## Stop database container
 	docker compose down
 
 db-reset: ## Reset database (drop, create, migrate) for both dev and test
 	docker compose stop app
-	docker compose exec postgres psql -U postgres -c "DROP DATABASE IF EXISTS app_dev;"
-	docker compose exec postgres psql -U postgres -c "DROP DATABASE IF EXISTS app_test;"
+	docker compose exec postgres psql -U $${POSTGRES_USER:-postgres} -c "DROP DATABASE IF EXISTS app_dev;"
+	docker compose exec postgres psql -U $${POSTGRES_USER:-postgres} -c "DROP DATABASE IF EXISTS app_test;"
 	docker compose start app
 	docker compose exec app sh -c 'mix ecto.create && mix ecto.migrate'
 	docker compose exec app sh -c 'MIX_ENV=test mix ecto.create && MIX_ENV=test mix ecto.migrate'
