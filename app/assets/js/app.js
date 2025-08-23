@@ -236,6 +236,11 @@ Hooks.Map = {
       }
     });
 
+    // Handle form cancellation - clear draft elements
+    this.handleEvent("clear_radius_preview", () => {
+      this.clearDraftElements();
+    });
+
     // Initialize with empty locations and fire cluster
     this.markersLayer = L.layerGroup().addTo(this.map);
     this.fireCluster = L.markerClusterGroup({
@@ -642,6 +647,24 @@ Hooks.Map = {
         weight: 2,
         dashArray: "4 4",
       }).addTo(this.map);
+    } catch (_err) {}
+  },
+
+  clearDraftElements() {
+    // Clear draft circle
+    try {
+      if (this.draftCircle) {
+        this.map.removeLayer(this.draftCircle);
+        this.draftCircle = null;
+      }
+    } catch (_err) {}
+
+    // Clear selection marker
+    try {
+      if (this.selectionMarker) {
+        this.map.removeLayer(this.selectionMarker);
+        this.selectionMarker = null;
+      }
     } catch (_err) {}
   },
 

@@ -42,7 +42,10 @@ defmodule AppWeb.AuthLive.Dashboard do
   end
 
   def handle_event("hide_form", _params, socket) do
-    {:noreply, assign(socket, :show_form, false)}
+    {:noreply,
+     socket
+     |> assign(:show_form, false)
+     |> push_event("clear_radius_preview", %{})}
   end
 
   def handle_event("create_location", params, socket) do
@@ -898,7 +901,7 @@ defmodule AppWeb.AuthLive.Dashboard do
                 Ended Fire Incidents
               </div>
               <div class="text-sm text-zinc-500 dark:text-zinc-400">
-                Recently ended in your monitored areas
+                No fire activity in the last 24 hours
               </div>
             <% end %>
           </div>
