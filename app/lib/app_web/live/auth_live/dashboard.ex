@@ -1081,7 +1081,7 @@ defmodule AppWeb.AuthLive.Dashboard do
       <div class="grid grid-cols-1">
         <div class="bg-white dark:bg-zinc-950 rounded-lg shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-800">
           <div class="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
-            <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Settings</h2>
+            <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Account</h2>
           </div>
           <div class="p-4 space-y-2 text-sm">
             <div class="flex items-center justify-between">

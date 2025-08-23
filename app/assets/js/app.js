@@ -163,10 +163,72 @@ Hooks.Map = {
       gestureHandling: true,
     }).setView([37.7749, -122.4194], 8);
 
-    // Add OpenStreetMap tile layer
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "© OpenStreetMap contributors",
-    }).addTo(this.map);
+    // Define base layers
+    const streetMap = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", {
+      attribution: "© Esri",
+    });
+
+    const satelliteMap = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+      attribution: "© Esri",
+    });
+
+    // Labels overlay for satellite view (no attribution to avoid duplication)
+    const labelsOverlay = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", {
+      attribution: "",
+    });
+
+    // Add default layer
+    streetMap.addTo(this.map);
+    this.currentLayer = streetMap;
+    this.streetMap = streetMap;
+    this.satelliteMap = satelliteMap;
+    this.labelsOverlay = labelsOverlay;
+
+    // Custom toggle control
+    const LayerToggle = L.Control.extend({
+      onAdd: function(map) {
+        const div = L.DomUtil.create('div', 'leaflet-control-layers leaflet-control');
+        div.innerHTML = `
+          <button class="layer-toggle-btn" style="
+            background: white;
+            border: 2px solid #ccc;
+            border-radius: 4px;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-size: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+          ">📍 Street</button>
+        `;
+        
+        L.DomEvent.disableClickPropagation(div);
+        
+        return div;
+      }
+    });
+
+    this.layerToggle = new LayerToggle({ position: 'topright' });
+    this.layerToggle.addTo(this.map);
+
+    // Add NASA FIRMS attribution
+    this.map.attributionControl.addAttribution('<a href="https://firms.modaps.eosdis.nasa.gov/" target="_blank">NASA FIRMS</a>');
+
+    // Toggle functionality
+    const toggleBtn = this.map.getContainer().querySelector('.layer-toggle-btn');
+    toggleBtn.addEventListener('click', () => {
+      if (this.currentLayer === this.streetMap) {
+        this.map.removeLayer(this.streetMap);
+        this.satelliteMap.addTo(this.map);
+        this.labelsOverlay.addTo(this.map);
+        this.currentLayer = this.satelliteMap;
+        toggleBtn.innerHTML = '🛰️ Satellite';
+      } else {
+        this.map.removeLayer(this.satelliteMap);
+        this.map.removeLayer(this.labelsOverlay);
+        this.streetMap.addTo(this.map);
+        this.currentLayer = this.streetMap;
+        toggleBtn.innerHTML = '📍 Street';
+      }
+    });
 
     // Handle map data updates from LiveView
     this.handleEvent("update_map_data", (data) => {
