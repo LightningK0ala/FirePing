@@ -12,14 +12,15 @@ defmodule App.Workers.FireClustering do
     unique: [states: [:available, :executing]]
 
   require Logger
-  import Ecto.Query
   alias App.{Fire, Repo}
 
   def perform(%Oban.Job{} = job) do
     args = job.args
     Logger.info("FireClustering: Starting fire incident clustering", args: args)
 
-    clustering_distance = Map.get(args, "clustering_distance", 5000)
+    clustering_distance =
+      Map.get(args, "clustering_distance", App.Config.fire_clustering_distance_meters())
+
     expiry_hours = Map.get(args, "expiry_hours", App.Config.fire_clustering_expiry_hours())
     start_time = System.monotonic_time(:millisecond)
 
@@ -77,26 +78,26 @@ defmodule App.Workers.FireClustering do
         end
 
         # Trigger notification orchestration for any incidents that were updated
-        if success_count > 0 do
-          # Get incident IDs that were affected during clustering
-          # This is a simplified approach - in practice, you might want to track which incidents were modified
-          recent_incidents =
-            App.FireIncident
-            |> where([i], i.status == "active")
-            |> where([i], i.updated_at >= ^DateTime.add(DateTime.utc_now(), -1, :hour))
-            |> select([i], i.id)
-            |> App.Repo.all()
+        # if success_count > 0 do
+        #   # Get incident IDs that were affected during clustering
+        #   # This is a simplified approach - in practice, you might want to track which incidents were modified
+        #   recent_incidents =
+        #     App.FireIncident
+        #     |> where([i], i.status == "active")
+        #     |> where([i], i.updated_at >= ^DateTime.add(DateTime.utc_now(), -1, :hour))
+        #     |> select([i], i.id)
+        #     |> App.Repo.all()
 
-          if length(recent_incidents) > 0 do
-            App.Workers.NotificationOrchestrator.enqueue_incident_updates(recent_incidents,
-              source: "fire_clustering"
-            )
+        #   if length(recent_incidents) > 0 do
+        #     App.Workers.NotificationOrchestrator.enqueue_incident_updates(recent_incidents,
+        #       source: "fire_clustering"
+        #     )
 
-            Logger.info(
-              "FireClustering: Enqueued notification orchestration for #{length(recent_incidents)} incidents"
-            )
-          end
-        end
+        #     Logger.info(
+        #       "FireClustering: Enqueued notification orchestration for #{length(recent_incidents)} incidents"
+        #     )
+        #   end
+        # end
 
         :ok
     end
@@ -116,7 +117,9 @@ defmodule App.Workers.FireClustering do
   Manually enqueue a fire clustering job.
   """
   def enqueue_now(opts \\ []) do
-    clustering_distance = Keyword.get(opts, :clustering_distance, 5000)
+    clustering_distance =
+      Keyword.get(opts, :clustering_distance, App.Config.fire_clustering_distance_meters())
+
     expiry_hours = Keyword.get(opts, :expiry_hours, App.Config.fire_clustering_expiry_hours())
 
     base_meta = %{

@@ -232,13 +232,6 @@ defmodule App.Workers.NotificationOrchestrator do
   end
 
   defp find_affected_locations(incident) do
-    # Find all locations that intersect with the incident's bounding box
-    # and are within the incident's spatial extent
-    incident_point = %Geo.Point{
-      coordinates: {incident.center_longitude, incident.center_latitude},
-      srid: 4326
-    }
-
     # Use a reasonable radius based on the incident's bounds
     # Calculate approximate radius from bounds
     lat_span = incident.max_latitude - incident.min_latitude
@@ -248,18 +241,16 @@ defmodule App.Workers.NotificationOrchestrator do
     # Convert to meters (approximate: 1 degree ≈ 111,000 meters)
     # Use half the span as radius
     radius_meters = max_span * 111_000 * 0.5
-    # Minimum 5km radius
-    radius_meters = max(radius_meters, 5000)
+    # Minimum radius based on clustering distance
+    radius_meters = max(radius_meters, App.Config.fire_clustering_distance_meters())
 
-    Location
-    |> where(
-      [l],
-      fragment(
-        "ST_DWithin(ST_Transform(?, 3857), ST_Transform(?, 3857), ?)",
-        l.point,
-        ^incident_point,
-        ^radius_meters
-      )
+    # Use the reusable spatial query function from Fire module
+    App.Fire.spatial_query_within_radius(
+      Location,
+      :point,
+      incident.center_latitude,
+      incident.center_longitude,
+      radius_meters
     )
     |> preload(:user)
     |> Repo.all()

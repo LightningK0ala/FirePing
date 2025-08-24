@@ -416,28 +416,38 @@ defmodule App.Fire do
   end
 
   def near_location(latitude, longitude, radius_meters) do
+    spatial_query_within_radius(__MODULE__, :point, latitude, longitude, radius_meters)
+    |> App.Repo.all()
+  end
+
+  @doc """
+  Creates a spatial query for finding records within a radius of a point.
+  This is a reusable function that can be used by other modules.
+
+  Returns a query that can be further modified or executed.
+  """
+  def spatial_query_within_radius(queryable, point_field, center_lat, center_lng, radius_meters) do
     # Fast bounding box pre-filter to reduce candidates
     # ~111km per degree latitude
     lat_offset = radius_meters / 111_000.0
-    lng_offset = radius_meters / (111_000.0 * :math.cos(latitude * :math.pi() / 180))
+    lng_offset = radius_meters / (111_000.0 * :math.cos(center_lat * :math.pi() / 180))
 
-    location_point = %Geo.Point{coordinates: {longitude, latitude}, srid: 4326}
+    center_point = %Geo.Point{coordinates: {center_lng, center_lat}, srid: 4326}
 
-    __MODULE__
-    |> where([f], f.latitude >= ^(latitude - lat_offset))
-    |> where([f], f.latitude <= ^(latitude + lat_offset))
-    |> where([f], f.longitude >= ^(longitude - lng_offset))
-    |> where([f], f.longitude <= ^(longitude + lng_offset))
+    queryable
+    |> where([r], r.latitude >= ^(center_lat - lat_offset))
+    |> where([r], r.latitude <= ^(center_lat + lat_offset))
+    |> where([r], r.longitude >= ^(center_lng - lng_offset))
+    |> where([r], r.longitude <= ^(center_lng + lng_offset))
     |> where(
-      [f],
+      [r],
       fragment(
         "ST_DWithin(ST_Transform(?, 3857), ST_Transform(?, 3857), ?)",
-        f.point,
-        ^location_point,
+        field(r, ^point_field),
+        ^center_point,
         ^radius_meters
       )
     )
-    |> App.Repo.all()
   end
 
   def cleanup_old(days_back) do
@@ -501,7 +511,11 @@ defmodule App.Fire do
   Finds an existing incident for a new fire based on spatial clustering.
   Returns the incident_id if found, nil otherwise.
   """
-  def find_incident_for_fire(new_fire, clustering_distance_meters \\ 5000, expiry_hours \\ nil) do
+  def find_incident_for_fire(
+        new_fire,
+        clustering_distance_meters \\ App.Config.fire_clustering_distance_meters(),
+        expiry_hours \\ nil
+      ) do
     expiry_hours = expiry_hours || App.Config.fire_clustering_expiry_hours()
     # Find fires within expiry_hours before the new fire's detection time
     # Use current time if detected_at is nil (for testing or incomplete data)
@@ -552,7 +566,11 @@ defmodule App.Fire do
   @doc """
   Assigns a fire to an incident, either creating a new incident or updating an existing one.
   """
-  def assign_to_incident(fire, clustering_distance_meters \\ 5000, expiry_hours \\ nil) do
+  def assign_to_incident(
+        fire,
+        clustering_distance_meters \\ App.Config.fire_clustering_distance_meters(),
+        expiry_hours \\ nil
+      ) do
     expiry_hours = expiry_hours || App.Config.fire_clustering_expiry_hours()
 
     case find_incident_for_fire(fire, clustering_distance_meters, expiry_hours) do
@@ -563,11 +581,6 @@ defmodule App.Fire do
             # Update fire with incident_id
             case update_fire_incident(fire, incident.id) do
               {:ok, updated_fire} ->
-                # Trigger notification for new incident
-                App.Workers.NotificationOrchestrator.enqueue_incident_updates([incident.id],
-                  source: "fire_clustering"
-                )
-
                 {:ok, updated_fire}
 
               error ->
@@ -586,11 +599,6 @@ defmodule App.Fire do
              {:ok, updated_fire} <- update_fire_incident(fire, incident_id) do
           # Recalculate incident center after adding fire
           App.FireIncident.recalculate_center(incident)
-          # Trigger notification for updated incident
-          App.Workers.NotificationOrchestrator.enqueue_incident_updates([incident.id],
-            source: "fire_clustering"
-          )
-
           {:ok, updated_fire}
         else
           error -> error
@@ -611,7 +619,9 @@ defmodule App.Fire do
   Processes fires from NASA data and assigns them to incidents.
   """
   def process_fires_with_clustering(nasa_data_list, opts \\ []) do
-    clustering_distance = Keyword.get(opts, :clustering_distance, 5000)
+    clustering_distance =
+      Keyword.get(opts, :clustering_distance, App.Config.fire_clustering_distance_meters())
+
     expiry_hours = Keyword.get(opts, :expiry_hours, App.Config.fire_clustering_expiry_hours())
 
     processed_data =
@@ -701,7 +711,9 @@ defmodule App.Fire do
   Returns a tuple with the count of fires processed and any errors encountered.
   """
   def process_unassigned_fires(opts \\ []) do
-    clustering_distance = Keyword.get(opts, :clustering_distance, 5000)
+    clustering_distance =
+      Keyword.get(opts, :clustering_distance, App.Config.fire_clustering_distance_meters())
+
     expiry_hours = Keyword.get(opts, :expiry_hours, App.Config.fire_clustering_expiry_hours())
 
     # Find all unassigned fires

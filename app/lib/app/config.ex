@@ -29,4 +29,13 @@ defmodule App.Config do
   def incident_deletion_threshold_days do
     Application.get_env(:app, :incident_deletion_threshold_days, 3)
   end
+
+  @doc """
+  Get the default fire clustering distance in meters.
+
+  This determines the maximum distance between fires to be considered part of the same incident.
+  """
+  def fire_clustering_distance_meters do
+    Application.get_env(:app, :fire_clustering_distance_meters, 5000)
+  end
 end
