@@ -10,8 +10,7 @@ defmodule AppWeb.Components.NotificationDevices do
      socket
      |> assign(assigns)
      |> assign(:devices, devices)
-     |> assign(:show_add_form, false)
-     |> assign(:loading_test, nil)}
+     |> assign(:show_add_form, false)}
   end
 
   def handle_event("show_add_form", _params, socket) do
@@ -66,24 +65,10 @@ defmodule AppWeb.Components.NotificationDevices do
   end
 
   def handle_event("send_test_notification", %{"device_id" => device_id}, socket) do
-    # Start loading state
-    socket = assign(socket, :loading_test, device_id)
-
     # Send message to parent to handle the async operation
     send(self(), {:send_test_notification, device_id})
 
-    # Clear loading state after a timeout as a fallback
-    Process.send_after(self(), {:clear_test_loading, device_id}, 5000)
-
     {:noreply, socket}
-  end
-
-  def handle_info({:clear_test_loading, device_id}, socket) do
-    if socket.assigns.loading_test == device_id do
-      {:noreply, assign(socket, :loading_test, nil)}
-    else
-      {:noreply, socket}
-    end
   end
 
   def handle_event("register_web_push", params, socket) do
@@ -177,16 +162,10 @@ defmodule AppWeb.Components.NotificationDevices do
                       phx-click="send_test_notification"
                       phx-value-device_id={device.id}
                       phx-target={@myself}
-                      disabled={!device.active or @loading_test == device.id}
+                      disabled={!device.active}
                       class="flex-1 sm:flex-none px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 disabled:opacity-50 disabled:cursor-not-allowed border border-blue-200 dark:border-blue-700 rounded hover:bg-blue-50 dark:hover:bg-blue-950/20 transition-colors"
                     >
-                      <%= if @loading_test == device.id do %>
-                        <div class="inline-block animate-spin rounded-full h-3 w-3 border border-blue-600 border-b-transparent mr-1">
-                        </div>
-                        Sending...
-                      <% else %>
-                        Test
-                      <% end %>
+                      Test
                     </button>
                     <button
                       phx-click="toggle_device"

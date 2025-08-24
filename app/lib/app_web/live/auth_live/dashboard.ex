@@ -287,12 +287,6 @@ defmodule AppWeb.AuthLive.Dashboard do
     end
   end
 
-  def handle_info({:clear_test_loading, _device_id}, socket) do
-    # This message is handled by the notification component, not the parent LiveView
-    # Just ignore it at the dashboard level
-    {:noreply, socket}
-  end
-
   def handle_info({:complete_update, params}, socket) do
     id = params["_id"]
     location = App.Repo.get(Location, id)
