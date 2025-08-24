@@ -561,7 +561,18 @@ defmodule App.Fire do
         case App.FireIncident.create_from_fire(fire) do
           {:ok, incident} ->
             # Update fire with incident_id
-            update_fire_incident(fire, incident.id)
+            case update_fire_incident(fire, incident.id) do
+              {:ok, updated_fire} ->
+                # Trigger notification for new incident
+                App.Workers.NotificationOrchestrator.enqueue_incident_updates([incident.id],
+                  source: "fire_clustering"
+                )
+
+                {:ok, updated_fire}
+
+              error ->
+                error
+            end
 
           error ->
             error
@@ -575,6 +586,11 @@ defmodule App.Fire do
              {:ok, updated_fire} <- update_fire_incident(fire, incident_id) do
           # Recalculate incident center after adding fire
           App.FireIncident.recalculate_center(incident)
+          # Trigger notification for updated incident
+          App.Workers.NotificationOrchestrator.enqueue_incident_updates([incident.id],
+            source: "fire_clustering"
+          )
+
           {:ok, updated_fire}
         else
           error -> error
@@ -745,6 +761,24 @@ defmodule App.Fire do
         Logger.warning(
           "Some unassigned fires could not be assigned to incidents: #{inspect(clustering_errors)}"
         )
+      end
+
+      # Trigger batch notification for all successfully processed fires
+      if success_count > 0 do
+        # Get the fire IDs that were successfully processed
+        successful_fire_ids =
+          unassigned_fires
+          |> Enum.with_index()
+          |> Enum.filter(fn {_, index} ->
+            Enum.at(clustering_results, index) == :ok
+          end)
+          |> Enum.map(fn {fire, _} -> fire.id end)
+
+        if length(successful_fire_ids) > 0 do
+          App.Workers.NotificationOrchestrator.enqueue_fire_batch(successful_fire_ids,
+            source: "fire_clustering"
+          )
+        end
       end
 
       {total_count, clustering_errors}

@@ -12,6 +12,7 @@ defmodule App.Workers.FireClustering do
     unique: [states: [:available, :executing]]
 
   require Logger
+  import Ecto.Query
   alias App.{Fire, Repo}
 
   def perform(%Oban.Job{} = job) do
@@ -73,6 +74,28 @@ defmodule App.Workers.FireClustering do
             Logger.warning("FireClustering: Failed to enqueue incident cleanup job",
               reason: inspect(reason)
             )
+        end
+
+        # Trigger notification orchestration for any incidents that were updated
+        if success_count > 0 do
+          # Get incident IDs that were affected during clustering
+          # This is a simplified approach - in practice, you might want to track which incidents were modified
+          recent_incidents =
+            App.FireIncident
+            |> where([i], i.status == "active")
+            |> where([i], i.updated_at >= ^DateTime.add(DateTime.utc_now(), -1, :hour))
+            |> select([i], i.id)
+            |> App.Repo.all()
+
+          if length(recent_incidents) > 0 do
+            App.Workers.NotificationOrchestrator.enqueue_incident_updates(recent_incidents,
+              source: "fire_clustering"
+            )
+
+            Logger.info(
+              "FireClustering: Enqueued notification orchestration for #{length(recent_incidents)} incidents"
+            )
+          end
         end
 
         :ok

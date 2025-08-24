@@ -27,6 +27,6 @@ defmodule App.Config do
   This determines how old an ended incident must be before it gets deleted.
   """
   def incident_deletion_threshold_days do
-    Application.get_env(:app, :incident_deletion_threshold_days, 7)
+    Application.get_env(:app, :incident_deletion_threshold_days, 3)
   end
 end

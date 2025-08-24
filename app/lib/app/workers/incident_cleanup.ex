@@ -12,6 +12,7 @@ defmodule App.Workers.IncidentCleanup do
     unique: [states: [:available, :executing]]
 
   require Logger
+
   alias App.{FireIncident, Repo}
 
   def perform(%Oban.Job{} = job) do
@@ -126,6 +127,28 @@ defmodule App.Workers.IncidentCleanup do
         Logger.warning(
           "IncidentCleanup: Some incidents could not be ended: #{inspect(cleanup_errors)}"
         )
+      end
+
+      # Trigger notification orchestration for ended incidents
+      if success_count > 0 do
+        # Get the incident IDs that were ended during cleanup
+        ended_incident_ids =
+          incidents_to_end
+          |> Enum.with_index()
+          |> Enum.filter(fn {_, index} ->
+            Enum.at(cleanup_results, index) == :ok
+          end)
+          |> Enum.map(fn {incident, _} -> incident.id end)
+
+        if length(ended_incident_ids) > 0 do
+          App.Workers.NotificationOrchestrator.enqueue_ended_incidents(ended_incident_ids,
+            source: "incident_cleanup"
+          )
+
+          Logger.info(
+            "IncidentCleanup: Enqueued notification orchestration for #{length(ended_incident_ids)} ended incidents"
+          )
+        end
       end
 
       {total_count, cleanup_errors}
