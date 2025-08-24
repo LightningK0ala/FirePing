@@ -265,11 +265,7 @@ Hooks.Map = {
           processedFires = this.convertCompactFiresToObjects(decodedData);
 
           console.log(
-            `🔥 Decoded ${processedFires.length} fires from MessagePack (${
-              binaryData.length
-            } bytes vs ~${
-              JSON.stringify(processedFires).length
-            } bytes uncompressed)`
+            `🔥 Decoded ${processedFires.length} fires from MessagePack (${binaryData.length} bytes)`
           );
         } catch (error) {
           console.error("Failed to decode MessagePack fires data:", error);
