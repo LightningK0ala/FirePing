@@ -2,6 +2,7 @@ defmodule App.NotificationsTest do
   use App.DataCase
 
   alias App.Notifications
+  import Mock
 
   describe "notification_devices" do
     alias App.NotificationDevice
@@ -115,6 +116,44 @@ defmodule App.NotificationsTest do
       assert length(notifications) == 2
       assert notification1.id in notification_ids
       assert notification2.id in notification_ids
+    end
+
+    test "send_notification/1 sends to webhook devices" do
+      user = insert(:user)
+
+      _webhook_device =
+        insert(:notification_device,
+          user: user,
+          channel: "webhook",
+          config: %{"url" => "https://example.com/webhook"}
+        )
+
+      notification = insert(:notification, user: user)
+
+      with_mock App.Webhook, [:passthrough],
+        send_notification: fn _notification, _device -> :ok end do
+        assert {:ok, %{sent: 1, failed: 0}} = Notifications.send_notification(notification)
+      end
+    end
+
+    test "send_notification/1 handles webhook failures" do
+      user = insert(:user)
+
+      _webhook_device =
+        insert(:notification_device,
+          user: user,
+          channel: "webhook",
+          config: %{"url" => "https://example.com/webhook"}
+        )
+
+      notification = insert(:notification, user: user)
+
+      with_mock App.Webhook, [:passthrough],
+        send_notification: fn _notification, _device ->
+          {:error, "HTTP 500"}
+        end do
+        assert {:ok, %{sent: 0, failed: 1}} = Notifications.send_notification(notification)
+      end
     end
   end
 end

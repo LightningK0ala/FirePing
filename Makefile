@@ -143,5 +143,8 @@ iex: ## Start IEx (Interactive Elixir) in the app container
 generate-vapid: ## Generate new VAPID keys for web push notifications using web_push_elixir
 	docker compose exec app sh -c 'mix generate.vapid.keys'
 
+generate-webhook-keys: ## Generate new Ed25519 webhook keypairs for signature generation and verification
+	docker compose exec app sh -c 'mix generate.webhook_keys'
+
 %:
 	@:

@@ -249,6 +249,10 @@ defmodule App.Notifications do
     App.WebPush.send_notification(notification, device)
   end
 
+  defp send_to_device(notification, %NotificationDevice{channel: "webhook"} = device) do
+    App.Webhook.send_notification(notification, device)
+  end
+
   defp send_to_device(_notification, %NotificationDevice{channel: channel}) do
     # For now, other channels are not implemented
     {:error, "#{channel} channel not yet implemented"}

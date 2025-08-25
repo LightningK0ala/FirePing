@@ -598,8 +598,6 @@ defmodule App.Workers.NotificationOrchestrator do
     # Find locations affected by this incident
     affected_locations = find_affected_locations(incident)
 
-    IO.inspect(affected_locations, label: "affected_locations")
-
     if length(affected_locations) == 0 do
       Logger.debug("No locations affected by incident #{incident.id}")
       {:ok, 0, 0}

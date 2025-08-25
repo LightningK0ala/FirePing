@@ -38,4 +38,22 @@ defmodule App.Config do
   def fire_clustering_distance_meters do
     Application.get_env(:app, :fire_clustering_distance_meters, 5000)
   end
+
+  @doc """
+  Get the webhook private key for signature generation.
+
+  This Ed25519 private key is used to sign webhook payloads.
+  """
+  def webhook_private_key do
+    Application.get_env(:app, :webhook_private_key)
+  end
+
+  @doc """
+  Get the webhook public key for signature verification.
+
+  This Ed25519 public key is shared with webhook recipients for signature verification.
+  """
+  def webhook_public_key do
+    Application.get_env(:app, :webhook_public_key)
+  end
 end

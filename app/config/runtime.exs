@@ -26,6 +26,11 @@ config :app,
   vapid_private_key: System.get_env("VAPID_PRIVATE_KEY"),
   vapid_subject: System.get_env("VAPID_SUBJECT") || "mailto:support@fireping.net"
 
+# Configure webhook Ed25519 keys for signature generation and verification
+config :app,
+  webhook_private_key: System.get_env("WEBHOOK_PRIVATE_KEY"),
+  webhook_public_key: System.get_env("WEBHOOK_PUBLIC_KEY")
+
 # Configure web_push_elixir
 config :web_push_elixir,
   vapid_public_key: System.get_env("VAPID_PUBLIC_KEY"),

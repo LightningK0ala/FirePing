@@ -83,7 +83,7 @@ config :app, Oban,
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
     {Oban.Plugins.Cron,
      crontab: [
-       # Every 10 minutes (NASA recommendation) 
+       # Every 10 minutes (NASA recommendation)
        # FireFetch -> FireClustering -> IncidentCleanup chain
        {"*/10 * * * *", App.Workers.FireFetch, max_attempts: 1}
      ]}
