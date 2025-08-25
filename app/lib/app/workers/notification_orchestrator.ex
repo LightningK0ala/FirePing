@@ -74,6 +74,18 @@ defmodule App.Workers.NotificationOrchestrator do
     process_fire_batch(fire_ids)
   end
 
+  defp process_notifications(%{
+         "type" => "fire_batch_with_status",
+         "fires_with_status" => fires_with_status
+       }) do
+    # Process a batch of fires with incident status information
+    Logger.info("Processing fire batch notification with status",
+      fire_count: length(fires_with_status)
+    )
+
+    process_fire_batch_with_status(fires_with_status)
+  end
+
   defp process_notifications(_args) do
     {:error, "Invalid notification type"}
   end
@@ -143,7 +155,7 @@ defmodule App.Workers.NotificationOrchestrator do
   end
 
   defp process_fire_batch(fire_ids) do
-    # Get fires and group them by incident
+    # Get fires with their incident associations
     fires =
       Fire
       |> where([f], f.id in ^fire_ids)
@@ -151,35 +163,413 @@ defmodule App.Workers.NotificationOrchestrator do
       |> preload(:fire_incident)
       |> Repo.all()
 
-    # Group fires by incident
-    fires_by_incident = Enum.group_by(fires, & &1.fire_incident_id)
+    # Step 1: Find locations affected by these fires
+    fire_location_pairs = Fire.find_locations_affected_by_fires(fires)
 
+    # Step 2: Group by user -> location -> incident -> fires
+    notifications_data =
+      fire_location_pairs
+      |> Enum.flat_map(fn {fire, locations} ->
+        # Create a {user, location, incident, fire} tuple for each affected location
+        Enum.map(locations, fn location ->
+          {location.user, location, fire.fire_incident, fire}
+        end)
+      end)
+      |> Enum.group_by(fn {user, _location, _incident, _fire} -> user.id end)
+      |> Enum.map(fn {_user_id, user_data} ->
+        # Group by location within each user
+        user = elem(List.first(user_data), 0)
+
+        locations_data =
+          user_data
+          |> Enum.group_by(fn {_user, location, _incident, _fire} -> location.id end)
+          |> Enum.map(fn {_location_id, location_data} ->
+            # Group by incident within each location
+            location = elem(List.first(location_data), 1)
+
+            incidents_data =
+              location_data
+              |> Enum.group_by(fn {_user, _location, incident, _fire} -> incident.id end)
+              |> Enum.map(fn {_incident_id, incident_data} ->
+                incident = elem(List.first(incident_data), 2)
+
+                fires =
+                  Enum.map(incident_data, fn {_user, _location, _incident, fire} -> fire end)
+
+                {incident, fires}
+              end)
+
+            {location, incidents_data}
+          end)
+
+        {user, locations_data}
+      end)
+
+    # Step 3: Send notifications grouped by user/location/incident
     results =
-      fires_by_incident
+      notifications_data
       |> Enum.reduce(
         %{incidents_processed: 0, notifications_sent: 0, users_notified: 0},
-        fn {incident_id, fires}, acc ->
-          incident = List.first(fires).fire_incident
+        fn {user, locations_data}, acc ->
+          user_notification_count =
+            locations_data
+            |> Enum.reduce(0, fn {location, incidents_data}, location_acc ->
+              incidents_data
+              |> Enum.reduce(location_acc, fn {incident, fires}, incident_acc ->
+                case send_location_incident_notification(user, location, incident, fires) do
+                  {:ok, notification_count} ->
+                    incident_acc + notification_count
 
-          case process_incident_notification(incident, :update, fires) do
-            {:ok, notification_count, user_count} ->
-              %{
-                incidents_processed: acc.incidents_processed + 1,
-                notifications_sent: acc.notifications_sent + notification_count,
-                users_notified: acc.users_notified + user_count
-              }
+                  {:error, reason} ->
+                    Logger.warning(
+                      "Failed to send notification for incident #{incident.id} to user #{user.id}",
+                      reason: reason
+                    )
 
-            {:error, reason} ->
-              Logger.warning("Failed to process notification for incident #{incident_id}",
-                reason: reason
-              )
+                    incident_acc
+                end
+              end)
+            end)
 
-              acc
-          end
+          incidents_count =
+            locations_data
+            |> Enum.flat_map(fn {_location, incidents_data} -> incidents_data end)
+            |> length()
+
+          %{
+            incidents_processed: acc.incidents_processed + incidents_count,
+            notifications_sent: acc.notifications_sent + user_notification_count,
+            users_notified: acc.users_notified + if(user_notification_count > 0, do: 1, else: 0)
+          }
         end
       )
 
     {:ok, results}
+  end
+
+  defp process_fire_batch_with_status(fires_with_status) do
+    # Extract fire IDs and get fires with their incident associations
+    fire_ids = Enum.map(fires_with_status, & &1.fire_id)
+
+    fires =
+      Fire
+      |> where([f], f.id in ^fire_ids)
+      |> where([f], not is_nil(f.fire_incident_id))
+      |> preload(:fire_incident)
+      |> Repo.all()
+
+    # Create a map of fire_id -> incident_status for quick lookup
+    status_map =
+      fires_with_status
+      |> Enum.into(%{}, fn %{fire_id: fire_id, incident_status: status} ->
+        {fire_id, status}
+      end)
+
+    # Step 1: Find locations affected by these fires
+    fire_location_pairs = Fire.find_locations_affected_by_fires(fires)
+
+    # Step 2: Group by user -> location -> incident -> fires (with status)
+    notifications_data =
+      fire_location_pairs
+      |> Enum.flat_map(fn {fire, locations} ->
+        # Get the incident status for this fire
+        incident_status = Map.get(status_map, fire.id, :existing_incident)
+
+        # Create a {user, location, incident, fire, status} tuple for each affected location
+        Enum.map(locations, fn location ->
+          {location.user, location, fire.fire_incident, fire, incident_status}
+        end)
+      end)
+      |> Enum.group_by(fn {user, _location, _incident, _fire, _status} -> user.id end)
+      |> Enum.map(fn {_user_id, user_data} ->
+        # Group by location within each user
+        user = elem(List.first(user_data), 0)
+
+        locations_data =
+          user_data
+          |> Enum.group_by(fn {_user, location, _incident, _fire, _status} -> location.id end)
+          |> Enum.map(fn {_location_id, location_data} ->
+            # Group by incident within each location
+            location = elem(List.first(location_data), 1)
+
+            incidents_data =
+              location_data
+              |> Enum.group_by(fn {_user, _location, incident, _fire, _status} -> incident.id end)
+              |> Enum.map(fn {_incident_id, incident_data} ->
+                incident = elem(List.first(incident_data), 2)
+
+                fires_with_statuses =
+                  Enum.map(incident_data, fn {_user, _location, _incident, fire, status} ->
+                    {fire, status}
+                  end)
+
+                {incident, fires_with_statuses}
+              end)
+
+            {location, incidents_data}
+          end)
+
+        {user, locations_data}
+      end)
+
+    # Step 3: Send notifications grouped by user/location/incident with status info
+    results =
+      notifications_data
+      |> Enum.reduce(
+        %{incidents_processed: 0, notifications_sent: 0, users_notified: 0},
+        fn {user, locations_data}, acc ->
+          user_notification_count =
+            locations_data
+            |> Enum.reduce(0, fn {location, incidents_data}, location_acc ->
+              incidents_data
+              |> Enum.reduce(location_acc, fn {incident, fires_with_statuses}, incident_acc ->
+                case send_location_incident_notification_with_status(
+                       user,
+                       location,
+                       incident,
+                       fires_with_statuses
+                     ) do
+                  {:ok, notification_count} ->
+                    incident_acc + notification_count
+
+                  {:error, reason} ->
+                    Logger.warning(
+                      "Failed to send notification for incident #{incident.id} to user #{user.id}",
+                      reason: reason
+                    )
+
+                    incident_acc
+                end
+              end)
+            end)
+
+          incidents_count =
+            locations_data
+            |> Enum.flat_map(fn {_location, incidents_data} -> incidents_data end)
+            |> length()
+
+          %{
+            incidents_processed: acc.incidents_processed + incidents_count,
+            notifications_sent: acc.notifications_sent + user_notification_count,
+            users_notified: acc.users_notified + if(user_notification_count > 0, do: 1, else: 0)
+          }
+        end
+      )
+
+    {:ok, results}
+  end
+
+  defp send_location_incident_notification(user, location, incident, fires) do
+    # Determine if this is a new incident or ongoing (this will be improved in next step)
+    # For now, treat all as ongoing since we don't have the status info yet
+    incident_type = :ongoing
+
+    # Count new fires (for now, all fires in this batch are "new")
+    new_fire_count = length(fires)
+
+    # Get total fire count for the incident
+    total_fire_count = get_incident_fire_count(incident.id)
+
+    # Get truncated incident ID (first 4 characters)
+    incident_short_id = String.slice(incident.id, 0, 4)
+
+    # Count active incidents affecting this location
+    active_incidents_count = count_active_incidents_for_location(location.id)
+
+    # Build notification content with location context and proper new/ongoing status
+    {title, body} =
+      build_incident_notification_content(
+        incident_type,
+        incident_short_id,
+        location.name,
+        new_fire_count,
+        total_fire_count,
+        active_incidents_count
+      )
+
+    # Create notification record
+    notification_attrs = %{
+      user_id: user.id,
+      fire_incident_id: incident.id,
+      title: title,
+      body: body,
+      type: "fire_alert",
+      data: %{
+        incident_id: incident.id,
+        incident_short_id: incident_short_id,
+        location_id: location.id,
+        location_name: location.name,
+        fire_count: new_fire_count,
+        total_fire_count: total_fire_count,
+        incident_type: incident_type,
+        active_incidents_count: active_incidents_count
+      }
+    }
+
+    case Notifications.create_notification(notification_attrs) do
+      {:ok, notification} ->
+        # Send to all user's devices
+        case Notifications.send_notification(notification) do
+          {:ok, %{sent: _sent_count, failed: failed_count}} ->
+            if failed_count > 0 do
+              Logger.warning("Some notification devices failed for user #{user.id}",
+                failed: failed_count
+              )
+            end
+
+            {:ok, 1}
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp send_location_incident_notification_with_status(
+         user,
+         location,
+         incident,
+         fires_with_statuses
+       ) do
+    # Determine if this incident has any new fires
+    has_new_incidents =
+      Enum.any?(fires_with_statuses, fn {_fire, status} -> status == :new_incident end)
+
+    incident_type = if has_new_incidents, do: :new, else: :ongoing
+
+    # Count new fires in this batch
+    new_fire_count = length(fires_with_statuses)
+
+    # Get total fire count for the incident
+    total_fire_count = get_incident_fire_count(incident.id)
+
+    # Get truncated incident ID (first 4 characters)
+    incident_short_id = String.slice(incident.id, 0, 4)
+
+    # Count active incidents affecting this location
+    active_incidents_count = count_active_incidents_for_location(location.id)
+
+    # Build notification content with location context and proper new/ongoing status
+    {title, body} =
+      build_incident_notification_content(
+        incident_type,
+        incident_short_id,
+        location.name,
+        new_fire_count,
+        total_fire_count,
+        active_incidents_count
+      )
+
+    # Create notification record
+    notification_attrs = %{
+      user_id: user.id,
+      fire_incident_id: incident.id,
+      title: title,
+      body: body,
+      type: "fire_alert",
+      data: %{
+        incident_id: incident.id,
+        incident_short_id: incident_short_id,
+        location_id: location.id,
+        location_name: location.name,
+        fire_count: new_fire_count,
+        total_fire_count: total_fire_count,
+        incident_type: incident_type,
+        has_new_incidents: has_new_incidents,
+        active_incidents_count: active_incidents_count
+      }
+    }
+
+    case Notifications.create_notification(notification_attrs) do
+      {:ok, notification} ->
+        # Send to all user's devices
+        case Notifications.send_notification(notification) do
+          {:ok, %{sent: _sent_count, failed: failed_count}} ->
+            if failed_count > 0 do
+              Logger.warning("Some notification devices failed for user #{user.id}",
+                failed: failed_count
+              )
+            end
+
+            {:ok, 1}
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp get_incident_fire_count(incident_id) do
+    Fire
+    |> where([f], f.fire_incident_id == ^incident_id)
+    |> select([f], count(f.id))
+    |> Repo.one()
+  end
+
+  defp count_active_incidents_for_location(location_id) do
+    # Find all active incidents that have fires within this location's radius
+    # This is a simplified version - in production you might want to cache this
+    location = App.Repo.get!(App.Location, location_id)
+
+    Fire
+    |> join(:inner, [f], i in App.FireIncident, on: f.fire_incident_id == i.id)
+    # Active incidents only
+    |> where([f, i], is_nil(i.ended_at))
+    |> where(
+      [f, i],
+      fragment(
+        "ST_DWithin(ST_Transform(?, 3857), ST_Transform(?, 3857), ?)",
+        f.point,
+        ^%Geo.Point{coordinates: {location.longitude, location.latitude}, srid: 4326},
+        ^location.radius
+      )
+    )
+    |> select([f, i], i.id)
+    |> distinct(true)
+    |> Repo.all()
+    |> length()
+  end
+
+  defp build_incident_notification_content(
+         incident_type,
+         incident_short_id,
+         location_name,
+         new_fire_count,
+         total_fire_count,
+         active_incidents_count
+       ) do
+    # Build base message
+    {title, body_base} =
+      case incident_type do
+        :new ->
+          title = "New fire incident (ID: #{incident_short_id})"
+          body = "#{new_fire_count} new fires detected"
+          {title, body}
+
+        :ongoing ->
+          title = "Fire incident updated (ID: #{incident_short_id})"
+          body = "#{new_fire_count} new fires detected (#{total_fire_count} total)"
+          {title, body}
+      end
+
+    # Add location context
+    body_with_location = "#{body_base} near '#{location_name}'"
+
+    # Add multiple incident context if relevant
+    final_body =
+      if active_incidents_count > 1 do
+        "#{body_with_location} (1 of #{active_incidents_count} active incidents)"
+      else
+        body_with_location
+      end
+
+    {title, final_body}
   end
 
   defp get_incidents_with_recent_fires(incident_ids) do
@@ -205,6 +595,8 @@ defmodule App.Workers.NotificationOrchestrator do
   defp process_incident_notification(incident, type, fires \\ nil) do
     # Find locations affected by this incident
     affected_locations = find_affected_locations(incident)
+
+    IO.inspect(affected_locations, label: "affected_locations")
 
     if length(affected_locations) == 0 do
       Logger.debug("No locations affected by incident #{incident.id}")
@@ -400,6 +792,20 @@ defmodule App.Workers.NotificationOrchestrator do
     %{
       "type" => "fire_batch",
       "fire_ids" => fire_ids
+    }
+    |> __MODULE__.new(meta: base_meta)
+    |> Oban.insert()
+  end
+
+  def enqueue_fire_batch_with_status(fires_with_status, opts \\ []) do
+    base_meta = %{
+      source: Keyword.get(opts, :source, "system"),
+      requested_at: DateTime.utc_now() |> DateTime.to_iso8601()
+    }
+
+    %{
+      "type" => "fire_batch_with_status",
+      "fires_with_status" => fires_with_status
     }
     |> __MODULE__.new(meta: base_meta)
     |> Oban.insert()
