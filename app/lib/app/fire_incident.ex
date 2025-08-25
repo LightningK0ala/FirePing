@@ -310,36 +310,50 @@ defmodule App.FireIncident do
   Deletes ended incidents older than the specified number of days.
   Returns {deleted_incidents_count, deleted_fires_count}.
   """
-  def delete_ended_incidents(days_old) do
+  def delete_ended_incidents(days_old, batch_size \\ 1000) do
     cutoff_date = DateTime.utc_now() |> DateTime.add(-days_old, :day)
 
-    # Get incidents to be deleted and count their fires first
-    incidents_to_delete =
+    # Use a single query with JOIN to count fires that will be deleted
+    # This is much more efficient than loading all incidents into memory
+    fire_count_query =
+      from f in App.Fire,
+        join: i in __MODULE__,
+        on: f.fire_incident_id == i.id,
+        where: i.status == "ended" and i.ended_at < ^cutoff_date
+
+    fire_count = App.Repo.aggregate(fire_count_query, :count)
+
+    # Delete incidents in batches to avoid timeouts and memory issues
+    total_deleted = delete_ended_incidents_in_batches(cutoff_date, batch_size)
+
+    {total_deleted, fire_count}
+  end
+
+  defp delete_ended_incidents_in_batches(cutoff_date, batch_size, total_deleted \\ 0) do
+    # Get a batch of incident IDs to delete
+    incident_ids_query =
       __MODULE__
-      |> where([i], i.status == "ended")
-      |> where([i], i.ended_at < ^cutoff_date)
-      |> App.Repo.all()
+      |> where([i], i.status == "ended" and i.ended_at < ^cutoff_date)
+      |> limit(^batch_size)
+      |> select([i], i.id)
 
-    # Count fires that will be deleted (for reporting)
-    fire_count =
-      if length(incidents_to_delete) > 0 do
-        incident_ids = Enum.map(incidents_to_delete, & &1.id)
+    incident_ids = App.Repo.all(incident_ids_query)
 
-        App.Fire
-        |> where([f], f.fire_incident_id in ^incident_ids)
-        |> App.Repo.aggregate(:count)
-      else
-        0
-      end
+    case incident_ids do
+      [] ->
+        # No more incidents to delete
+        total_deleted
 
-    # Delete incidents (fires will cascade delete)
-    {deleted_count, _} =
-      __MODULE__
-      |> where([i], i.status == "ended")
-      |> where([i], i.ended_at < ^cutoff_date)
-      |> App.Repo.delete_all()
+      ids ->
+        # Delete this batch of incidents
+        {deleted_count, _} =
+          __MODULE__
+          |> where([i], i.id in ^ids)
+          |> App.Repo.delete_all()
 
-    {deleted_count, fire_count}
+        # Recursively process the next batch
+        delete_ended_incidents_in_batches(cutoff_date, batch_size, total_deleted + deleted_count)
+    end
   end
 
   # Helper functions

@@ -68,7 +68,7 @@ defmodule App.FireClusteringTest do
           longitude: -122.4195
         })
 
-      assert Fire.find_incident_for_fire(new_fire, 5000) == nearby_incident.id
+      assert Fire.find_incident_for_fire(new_fire) == nearby_incident.id
     end
 
     test "respects custom clustering distance" do

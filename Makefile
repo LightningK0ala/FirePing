@@ -125,8 +125,10 @@ incident-cleanup: ## Manually trigger incident cleanup job (usage: make incident
 		docker compose exec app sh -c 'mix incident_cleanup'; \
 	fi
 
-incident-deletion: ## Manually trigger incident deletion job (usage: make incident-deletion or make incident-deletion days=60)
-	@if [ -n "$(days)" ]; then \
+incident-deletion: ## Manually trigger incident deletion job (usage: make incident-deletion or make incident-deletion days=60 batch_size=500)
+	@if [ -n "$(days)" ] && [ -n "$(batch_size)" ]; then \
+		docker compose exec app sh -c 'mix incident_deletion $(days) $(batch_size)'; \
+	elif [ -n "$(days)" ]; then \
 		docker compose exec app sh -c 'mix incident_deletion $(days)'; \
 	else \
 		docker compose exec app sh -c 'mix incident_deletion'; \
@@ -137,6 +139,9 @@ shell: ## Start an interactive shell in the app container
 
 iex: ## Start IEx (Interactive Elixir) in the app container
 	docker compose exec app iex -S mix
+
+generate-vapid: ## Generate new VAPID keys for web push notifications using web_push_elixir
+	docker compose exec app sh -c 'mix generate.vapid.keys'
 
 %:
 	@:

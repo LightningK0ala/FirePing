@@ -1,6 +1,6 @@
 defmodule AppWeb.AuthLive.Dashboard do
   use AppWeb, :live_view
-  alias App.Location
+  alias App.{Location, Notifications, Notification, NotificationDevice}
 
   def mount(_params, _session, socket) do
     # current_user is set by the on_mount hook
@@ -254,6 +254,36 @@ defmodule AppWeb.AuthLive.Dashboard do
          socket
          |> assign(:deleting_location_id, nil)
          |> put_flash(:error, "Error deleting location")}
+    end
+  end
+
+  def handle_info({:send_test_notification, device_id}, socket) do
+    case Notifications.get_user_notification_device(socket.assigns.current_user.id, device_id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Device not found")}
+
+      device ->
+        case Notifications.create_test_notification(socket.assigns.current_user.id) do
+          {:ok, notification} ->
+            case App.WebPush.send_notification(notification, device) do
+              :ok ->
+                # Update the device's last_used_at timestamp
+                NotificationDevice.update_last_used(device)
+                # Mark the notification as sent
+                Notification.mark_as_sent(notification)
+                {:noreply, put_flash(socket, :info, "Test notification sent to #{device.name}!")}
+
+              {:error, reason} ->
+                # Mark the notification as failed
+                Notification.mark_as_failed(notification, reason)
+
+                {:noreply,
+                 put_flash(socket, :error, "Failed to send test notification: #{reason}")}
+            end
+
+          {:error, _changeset} ->
+            {:noreply, put_flash(socket, :error, "Failed to create test notification")}
+        end
     end
   end
 
@@ -1098,8 +1128,16 @@ defmodule AppWeb.AuthLive.Dashboard do
         </div>
       </div>
       
+    <!-- Notification Devices and Settings -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Notification Devices Widget -->
+        <.live_component
+          module={AppWeb.Components.NotificationDevices}
+          id="notification-devices"
+          current_user={@current_user}
+        />
+        
     <!-- Settings Card -->
-      <div class="grid grid-cols-1">
         <div class="bg-white dark:bg-zinc-950 rounded-lg shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-800">
           <div class="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
             <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Account</h2>

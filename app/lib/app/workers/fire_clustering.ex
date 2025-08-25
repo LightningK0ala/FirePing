@@ -18,7 +18,9 @@ defmodule App.Workers.FireClustering do
     args = job.args
     Logger.info("FireClustering: Starting fire incident clustering", args: args)
 
-    clustering_distance = Map.get(args, "clustering_distance", 5000)
+    clustering_distance =
+      Map.get(args, "clustering_distance", App.Config.fire_clustering_distance_meters())
+
     expiry_hours = Map.get(args, "expiry_hours", App.Config.fire_clustering_expiry_hours())
     start_time = System.monotonic_time(:millisecond)
 
@@ -93,7 +95,9 @@ defmodule App.Workers.FireClustering do
   Manually enqueue a fire clustering job.
   """
   def enqueue_now(opts \\ []) do
-    clustering_distance = Keyword.get(opts, :clustering_distance, 5000)
+    clustering_distance =
+      Keyword.get(opts, :clustering_distance, App.Config.fire_clustering_distance_meters())
+
     expiry_hours = Keyword.get(opts, :expiry_hours, App.Config.fire_clustering_expiry_hours())
 
     base_meta = %{

@@ -19,9 +19,12 @@ defmodule App.Workers.IncidentDeletion do
     Logger.info("IncidentDeletion: Starting cleanup of ended incidents", args: args)
 
     days_old = Map.get(args, "days_old", App.Config.incident_deletion_threshold_days())
+    batch_size = Map.get(args, "batch_size", 1000)
     start_time = System.monotonic_time(:millisecond)
 
-    case FireIncident.delete_ended_incidents(days_old) do
+    Logger.info("IncidentDeletion: Using batch size of #{batch_size} for deletion")
+
+    case FireIncident.delete_ended_incidents(days_old, batch_size) do
       {deleted_incidents, deleted_fires} ->
         end_time = System.monotonic_time(:millisecond)
         duration_ms = end_time - start_time
@@ -33,6 +36,7 @@ defmodule App.Workers.IncidentDeletion do
           duration_ms: duration_ms,
           duration_seconds: Float.round(duration_ms / 1000, 1),
           days_old_threshold: days_old,
+          batch_size: batch_size,
           completed_at: DateTime.utc_now() |> DateTime.to_iso8601()
         }
 
@@ -44,6 +48,7 @@ defmodule App.Workers.IncidentDeletion do
             "IncidentDeletion: Successfully deleted #{deleted_incidents} ended incidents and #{deleted_fires} associated fires",
             duration: "#{Float.round(duration_ms / 1000, 1)}s",
             threshold: "#{days_old} days",
+            batch_size: batch_size,
             metadata: metadata
           )
         else
@@ -73,6 +78,7 @@ defmodule App.Workers.IncidentDeletion do
   """
   def enqueue_now(opts \\ []) do
     days_old = Keyword.get(opts, :days_old, App.Config.incident_deletion_threshold_days())
+    batch_size = Keyword.get(opts, :batch_size, 1000)
 
     base_meta = %{
       source: "manual",
@@ -80,7 +86,8 @@ defmodule App.Workers.IncidentDeletion do
     }
 
     %{
-      "days_old" => days_old
+      "days_old" => days_old,
+      "batch_size" => batch_size
     }
     |> __MODULE__.new(meta: base_meta)
     |> Oban.insert()
