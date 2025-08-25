@@ -416,28 +416,65 @@ defmodule App.Fire do
   end
 
   def near_location(latitude, longitude, radius_meters) do
+    spatial_query_within_radius(__MODULE__, :point, latitude, longitude, radius_meters)
+    |> App.Repo.all()
+  end
+
+  @doc """
+  Finds all locations that are affected by a list of fires.
+  Returns a list of {fire, [locations]} tuples.
+  """
+  def find_locations_affected_by_fires(fires) when is_list(fires) do
+    fires
+    |> Enum.map(fn fire ->
+      fire_point = %Geo.Point{coordinates: {fire.longitude, fire.latitude}, srid: 4326}
+
+      affected_locations =
+        App.Location
+        |> where(
+          [l],
+          fragment(
+            "ST_DWithin(ST_Transform(?, 3857), ST_Transform(?, 3857), ?)",
+            ^fire_point,
+            l.point,
+            l.radius
+          )
+        )
+        |> preload(:user)
+        |> App.Repo.all()
+
+      {fire, affected_locations}
+    end)
+  end
+
+  @doc """
+  Creates a spatial query for finding records within a radius of a point.
+  This is a reusable function that can be used by other modules.
+
+  Returns a query that can be further modified or executed.
+  """
+  def spatial_query_within_radius(queryable, point_field, center_lat, center_lng, radius_meters) do
     # Fast bounding box pre-filter to reduce candidates
     # ~111km per degree latitude
     lat_offset = radius_meters / 111_000.0
-    lng_offset = radius_meters / (111_000.0 * :math.cos(latitude * :math.pi() / 180))
+    lng_offset = radius_meters / (111_000.0 * :math.cos(center_lat * :math.pi() / 180))
 
-    location_point = %Geo.Point{coordinates: {longitude, latitude}, srid: 4326}
+    center_point = %Geo.Point{coordinates: {center_lng, center_lat}, srid: 4326}
 
-    __MODULE__
-    |> where([f], f.latitude >= ^(latitude - lat_offset))
-    |> where([f], f.latitude <= ^(latitude + lat_offset))
-    |> where([f], f.longitude >= ^(longitude - lng_offset))
-    |> where([f], f.longitude <= ^(longitude + lng_offset))
+    queryable
+    |> where([r], r.latitude >= ^(center_lat - lat_offset))
+    |> where([r], r.latitude <= ^(center_lat + lat_offset))
+    |> where([r], r.longitude >= ^(center_lng - lng_offset))
+    |> where([r], r.longitude <= ^(center_lng + lng_offset))
     |> where(
-      [f],
+      [r],
       fragment(
         "ST_DWithin(ST_Transform(?, 3857), ST_Transform(?, 3857), ?)",
-        f.point,
-        ^location_point,
+        field(r, ^point_field),
+        ^center_point,
         ^radius_meters
       )
     )
-    |> App.Repo.all()
   end
 
   def cleanup_old(days_back) do
@@ -501,7 +538,11 @@ defmodule App.Fire do
   Finds an existing incident for a new fire based on spatial clustering.
   Returns the incident_id if found, nil otherwise.
   """
-  def find_incident_for_fire(new_fire, clustering_distance_meters \\ 5000, expiry_hours \\ nil) do
+  def find_incident_for_fire(
+        new_fire,
+        clustering_distance_meters \\ App.Config.fire_clustering_distance_meters(),
+        expiry_hours \\ nil
+      ) do
     expiry_hours = expiry_hours || App.Config.fire_clustering_expiry_hours()
     # Find fires within expiry_hours before the new fire's detection time
     # Use current time if detected_at is nil (for testing or incomplete data)
@@ -552,7 +593,11 @@ defmodule App.Fire do
   @doc """
   Assigns a fire to an incident, either creating a new incident or updating an existing one.
   """
-  def assign_to_incident(fire, clustering_distance_meters \\ 5000, expiry_hours \\ nil) do
+  def assign_to_incident(
+        fire,
+        clustering_distance_meters \\ App.Config.fire_clustering_distance_meters(),
+        expiry_hours \\ nil
+      ) do
     expiry_hours = expiry_hours || App.Config.fire_clustering_expiry_hours()
 
     case find_incident_for_fire(fire, clustering_distance_meters, expiry_hours) do
@@ -561,7 +606,13 @@ defmodule App.Fire do
         case App.FireIncident.create_from_fire(fire) do
           {:ok, incident} ->
             # Update fire with incident_id
-            update_fire_incident(fire, incident.id)
+            case update_fire_incident(fire, incident.id) do
+              {:ok, updated_fire} ->
+                {:ok, updated_fire}
+
+              error ->
+                error
+            end
 
           error ->
             error
@@ -583,6 +634,65 @@ defmodule App.Fire do
   end
 
   @doc """
+  Assigns a fire to an incident and returns whether it created a new incident.
+  Returns {:ok, fire, :new_incident} or {:ok, fire, :existing_incident}
+  """
+  def assign_to_incident_with_status(
+        fire,
+        clustering_distance_meters \\ App.Config.fire_clustering_distance_meters(),
+        expiry_hours \\ nil
+      ) do
+    expiry_hours = expiry_hours || App.Config.fire_clustering_expiry_hours()
+
+    case find_incident_for_fire(fire, clustering_distance_meters, expiry_hours) do
+      nil ->
+        # Create new incident
+        case App.FireIncident.create_from_fire(fire) do
+          {:ok, incident} ->
+            # Update fire with incident_id
+            case update_fire_incident(fire, incident.id) do
+              {:ok, updated_fire} ->
+                {:ok, updated_fire, :new_incident}
+
+              {:error, changeset} ->
+                {:error, changeset}
+            end
+
+          {:error, changeset} ->
+            {:error, changeset}
+        end
+
+      incident_id ->
+        # Add to existing incident
+        incident = App.Repo.get!(App.FireIncident, incident_id)
+
+        with {:ok, _updated_incident} <- App.FireIncident.add_fire(incident, fire),
+             {:ok, updated_fire} <- update_fire_incident(fire, incident_id) do
+          # Recalculate incident center after adding fire
+          App.FireIncident.recalculate_center(incident)
+          {:ok, updated_fire, :existing_incident}
+        else
+          error -> error
+        end
+    end
+  end
+
+  @doc """
+  Processes multiple fires with incident assignment and returns status for each.
+  Returns a list of {:ok, fire, :new_incident | :existing_incident} tuples.
+  """
+  def process_fires_with_status(
+        fires,
+        clustering_distance_meters \\ App.Config.fire_clustering_distance_meters(),
+        expiry_hours \\ nil
+      ) do
+    fires
+    |> Enum.map(fn fire ->
+      assign_to_incident_with_status(fire, clustering_distance_meters, expiry_hours)
+    end)
+  end
+
+  @doc """
   Updates a fire's incident association.
   """
   def update_fire_incident(fire, incident_id) do
@@ -595,7 +705,9 @@ defmodule App.Fire do
   Processes fires from NASA data and assigns them to incidents.
   """
   def process_fires_with_clustering(nasa_data_list, opts \\ []) do
-    clustering_distance = Keyword.get(opts, :clustering_distance, 5000)
+    clustering_distance =
+      Keyword.get(opts, :clustering_distance, App.Config.fire_clustering_distance_meters())
+
     expiry_hours = Keyword.get(opts, :expiry_hours, App.Config.fire_clustering_expiry_hours())
 
     processed_data =
@@ -634,14 +746,14 @@ defmodule App.Fire do
       |> Enum.reduce([], fn fire, acc ->
         result =
           App.Repo.transaction(fn ->
-            case assign_to_incident(fire, clustering_distance, expiry_hours) do
-              {:ok, _} -> :ok
+            case assign_to_incident_with_status(fire, clustering_distance, expiry_hours) do
+              {:ok, updated_fire, incident_status} -> {:ok, updated_fire.id, incident_status}
               {:error, reason} -> App.Repo.rollback({:error, fire.id, reason})
             end
           end)
 
         case result do
-          {:ok, :ok} -> [:ok | acc]
+          {:ok, {:ok, fire_id, incident_status}} -> [{:ok, fire_id, incident_status} | acc]
           {:error, error_tuple} -> [error_tuple | acc]
         end
       end)
@@ -685,7 +797,9 @@ defmodule App.Fire do
   Returns a tuple with the count of fires processed and any errors encountered.
   """
   def process_unassigned_fires(opts \\ []) do
-    clustering_distance = Keyword.get(opts, :clustering_distance, 5000)
+    clustering_distance =
+      Keyword.get(opts, :clustering_distance, App.Config.fire_clustering_distance_meters())
+
     expiry_hours = Keyword.get(opts, :expiry_hours, App.Config.fire_clustering_expiry_hours())
 
     # Find all unassigned fires
@@ -718,15 +832,15 @@ defmodule App.Fire do
 
           result =
             App.Repo.transaction(fn ->
-              case assign_to_incident(fire, clustering_distance, expiry_hours) do
-                {:ok, _} -> :ok
+              case assign_to_incident_with_status(fire, clustering_distance, expiry_hours) do
+                {:ok, updated_fire, incident_status} -> {:ok, updated_fire.id, incident_status}
                 {:error, reason} -> App.Repo.rollback({:error, fire.id, reason})
               end
             end)
 
           new_result =
             case result do
-              {:ok, :ok} -> :ok
+              {:ok, {:ok, fire_id, incident_status}} -> {:ok, fire_id, incident_status}
               {:error, error_tuple} -> error_tuple
             end
 
@@ -745,6 +859,24 @@ defmodule App.Fire do
         Logger.warning(
           "Some unassigned fires could not be assigned to incidents: #{inspect(clustering_errors)}"
         )
+      end
+
+      # Trigger batch notification for all successfully processed fires
+      if success_count > 0 do
+        # Get the fire data with incident status for successfully processed fires
+        successful_fires_with_status =
+          clustering_results
+          |> Enum.filter(&match?({:ok, _, _}, &1))
+          |> Enum.map(fn {:ok, fire_id, incident_status} ->
+            %{fire_id: fire_id, incident_status: incident_status}
+          end)
+
+        if length(successful_fires_with_status) > 0 do
+          App.Workers.NotificationOrchestrator.enqueue_fire_batch_with_status(
+            successful_fires_with_status,
+            source: "fire_clustering"
+          )
+        end
       end
 
       {total_count, clustering_errors}

@@ -9,7 +9,10 @@ defmodule Mix.Tasks.FireCluster do
   use Mix.Task
 
   def run([]) do
-    run(["5000", Integer.to_string(App.Config.fire_clustering_expiry_hours())])
+    run([
+      Integer.to_string(App.Config.fire_clustering_distance_meters()),
+      Integer.to_string(App.Config.fire_clustering_expiry_hours())
+    ])
   end
 
   def run([distance]) do
