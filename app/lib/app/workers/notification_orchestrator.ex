@@ -718,18 +718,22 @@ defmodule App.Workers.NotificationOrchestrator do
         {title, body, data}
 
       :ended ->
-        title = "Fire Incident Ended"
+        cutoff_hours = App.Config.incident_cleanup_threshold_hours()
+        incident_short_id = String.slice(incident.id, 0, 4)
+        title = "Fire incident ended (ID: #{incident_short_id})"
 
         body =
-          "The fire incident near #{location_names} has ended. No new fires have been detected for 24 hours."
+          "The fire incident near #{location_names} has ended. No new fires have been detected for #{cutoff_hours} hours."
 
         data = %{
           incident_id: incident.id,
+          incident_short_id: incident_short_id,
           location_names: location_names,
           center_lat: incident.center_latitude,
           center_lng: incident.center_longitude,
           total_fire_count: incident.fire_count,
-          ended_at: DateTime.to_iso8601(incident.ended_at)
+          ended_at: DateTime.to_iso8601(incident.ended_at),
+          cutoff_hours: cutoff_hours
         }
 
         {title, body, data}
