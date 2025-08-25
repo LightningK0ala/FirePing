@@ -249,7 +249,7 @@ defmodule App.Workers.NotificationOrchestrator do
 
   defp process_fire_batch_with_status(fires_with_status) do
     # Extract fire IDs and get fires with their incident associations
-    fire_ids = Enum.map(fires_with_status, & &1.fire_id)
+    fire_ids = Enum.map(fires_with_status, &(Map.get(&1, "fire_id") || Map.get(&1, :fire_id)))
 
     fires =
       Fire
@@ -261,7 +261,9 @@ defmodule App.Workers.NotificationOrchestrator do
     # Create a map of fire_id -> incident_status for quick lookup
     status_map =
       fires_with_status
-      |> Enum.into(%{}, fn %{fire_id: fire_id, incident_status: status} ->
+      |> Enum.into(%{}, fn fire_status ->
+        fire_id = Map.get(fire_status, "fire_id") || Map.get(fire_status, :fire_id)
+        status = Map.get(fire_status, "incident_status") || Map.get(fire_status, :incident_status)
         {fire_id, status}
       end)
 
