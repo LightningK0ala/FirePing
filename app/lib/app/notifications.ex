@@ -178,6 +178,20 @@ defmodule App.Notifications do
     %Notification{}
     |> Notification.changeset(attrs)
     |> Repo.insert()
+    |> case do
+      {:ok, notification} ->
+        # Broadcast event so subscribers can update
+        Phoenix.PubSub.broadcast(
+          App.PubSub,
+          "notifications:#{notification.user_id}",
+          {:notification_created, notification}
+        )
+
+        {:ok, notification}
+
+      error ->
+        error
+    end
   end
 
   @doc """

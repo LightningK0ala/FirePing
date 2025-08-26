@@ -3,6 +3,11 @@ defmodule AppWeb.AuthLive.Dashboard do
   alias App.{Location, Notifications, Notification, NotificationDevice}
 
   def mount(_params, _session, socket) do
+    # Subscribe to notifications for this user
+    if connected?(socket) do
+      Phoenix.PubSub.subscribe(App.PubSub, "notifications:#{socket.assigns.current_user.id}")
+    end
+
     # current_user is set by the on_mount hook
     locations = Location.list_for_user(socket.assigns.current_user.id)
     fires = App.Fire.fires_near_locations(locations, quality: :all, status: :all)
@@ -258,57 +263,88 @@ defmodule AppWeb.AuthLive.Dashboard do
   end
 
   def handle_info({:send_test_notification, device_id}, socket) do
-    case Notifications.get_user_notification_device(socket.assigns.current_user.id, device_id) do
-      nil ->
-        {:noreply, put_flash(socket, :error, "Device not found")}
+    try do
+      case Notifications.get_user_notification_device(socket.assigns.current_user.id, device_id) do
+        nil ->
+          {:noreply, put_flash(socket, :error, "Device not found")}
 
-      device ->
-        # Create a test notification with device context
-        test_notification_attrs = %{
-          user_id: socket.assigns.current_user.id,
-          title: "Test Notification",
-          body: "This is a test notification to verify your device is working correctly.",
-          type: "test",
-          data: %{
-            "test" => true,
-            "device_name" => device.name,
-            "device_channel" => device.channel,
-            "webhook" => device.channel == "webhook"
+        device ->
+          # Create a test notification with device context
+          test_notification_attrs = %{
+            user_id: socket.assigns.current_user.id,
+            title: "Test Notification",
+            body: "This is a test notification to verify your device is working correctly.",
+            type: "test",
+            data: %{
+              "test" => true,
+              "device_name" => device.name,
+              "device_channel" => device.channel,
+              "webhook" => device.channel == "webhook"
+            }
           }
-        }
-        
-        case Notifications.create_notification(test_notification_attrs) do
-          {:ok, notification} ->
-            # Route to the appropriate notification sender based on device channel
-            result = case device.channel do
-              "web_push" ->
-                App.WebPush.send_notification(notification, device)
-              "webhook" ->
-                App.Webhook.send_notification(notification, device)
-              _ ->
-                {:error, "Unsupported notification channel: #{device.channel}"}
-            end
 
-            case result do
-              :ok ->
-                # Update the device's last_used_at timestamp
-                NotificationDevice.update_last_used(device)
-                # Mark the notification as sent
-                Notification.mark_as_sent(notification)
-                {:noreply, put_flash(socket, :info, "Test notification sent to #{device.name}!")}
+          case Notifications.create_notification(test_notification_attrs) do
+            {:ok, notification} ->
+              # Route to the appropriate notification sender based on device channel
+              result =
+                case device.channel do
+                  "web_push" ->
+                    App.WebPush.send_notification(notification, device)
 
-              {:error, reason} ->
-                # Mark the notification as failed
-                Notification.mark_as_failed(notification, reason)
+                  "webhook" ->
+                    App.Webhook.send_notification(notification, device)
 
-                {:noreply,
-                 put_flash(socket, :error, "Failed to send test notification: #{reason}")}
-            end
+                  _ ->
+                    {:error, "Unsupported notification channel: #{device.channel}"}
+                end
 
-          {:error, _changeset} ->
-            {:noreply, put_flash(socket, :error, "Failed to create test notification")}
-        end
+              case result do
+                :ok ->
+                  # Update the device's last_used_at timestamp
+                  NotificationDevice.update_last_used(device)
+                  # Mark the notification as sent
+                  Notification.mark_as_sent(notification)
+
+                  {:noreply,
+                   put_flash(socket, :info, "Test notification sent to #{device.name}!")}
+
+                {:error, reason} ->
+                  # Mark the notification as failed
+                  Notification.mark_as_failed(notification, reason)
+
+                  {:noreply,
+                   put_flash(socket, :error, "Failed to send test notification: #{reason}")}
+              end
+
+            {:error, _changeset} ->
+              {:noreply, put_flash(socket, :error, "Failed to create test notification")}
+          end
+      end
+    rescue
+      error ->
+        # Log the error for debugging
+        require Logger
+        Logger.error("Error in send_test_notification: #{inspect(error)}")
+
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           "An unexpected error occurred while sending the test notification"
+         )}
     end
+  end
+
+  def handle_info({:notification_created, _notification}, socket) do
+    # Update the NotificationHistory component with the new notification
+    # We'll pass the notification data to trigger a re-render
+    send_update(AppWeb.Components.NotificationHistory,
+      id: "notification-history",
+      current_user: socket.assigns.current_user,
+      limit: 10
+    )
+
+    {:noreply, socket}
   end
 
   def handle_info({:complete_update, params}, socket) do

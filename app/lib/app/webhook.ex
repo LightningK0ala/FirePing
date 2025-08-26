@@ -33,8 +33,11 @@ defmodule App.Webhook do
       # Convert payload to JSON
       json_payload = Jason.encode!(signed_payload)
 
-      # Send notification using HTTPoison
-      case HTTPoison.post(url, json_payload, [{"Content-Type", "application/json"}]) do
+      # Send notification using HTTPoison with timeout
+      case HTTPoison.post(url, json_payload, [{"Content-Type", "application/json"}],
+             timeout: 10_000,
+             recv_timeout: 10_000
+           ) do
         {:ok, %{status_code: status_code}} when status_code in 200..299 ->
           Logger.info("Webhook notification sent successfully to device #{device.id}")
           :ok

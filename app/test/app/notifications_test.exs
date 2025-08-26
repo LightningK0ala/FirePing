@@ -102,6 +102,49 @@ defmodule App.NotificationsTest do
       assert notification.user_id == user.id
     end
 
+    test "create_notification/1 broadcasts notification_created event" do
+      user = insert(:user)
+
+      # Subscribe to the user's notification topic
+      Phoenix.PubSub.subscribe(App.PubSub, "notifications:#{user.id}")
+
+      notification_attrs = %{
+        user_id: user.id,
+        title: "Test Notification",
+        body: "Test body",
+        type: "test"
+      }
+
+      assert {:ok, %Notification{} = notification} =
+               Notifications.create_notification(notification_attrs)
+
+      # Should receive the broadcast
+      assert_receive {:notification_created, ^notification}
+    end
+
+    test "create_notification/1 broadcasts to correct user topic" do
+      user1 = insert(:user)
+      user2 = insert(:user)
+
+      # Subscribe to both users' notification topics
+      Phoenix.PubSub.subscribe(App.PubSub, "notifications:#{user1.id}")
+      Phoenix.PubSub.subscribe(App.PubSub, "notifications:#{user2.id}")
+
+      notification_attrs = %{
+        user_id: user1.id,
+        title: "Test Notification",
+        body: "Test body",
+        type: "test"
+      }
+
+      assert {:ok, %Notification{} = notification} =
+               Notifications.create_notification(notification_attrs)
+
+      # Should only receive broadcast for user1
+      assert_receive {:notification_created, ^notification}
+      refute_receive {:notification_created, _}
+    end
+
     test "list_notifications/2 returns notifications for a user" do
       user1 = insert(:user)
       user2 = insert(:user)
