@@ -5,7 +5,7 @@ defmodule AppWeb.Components.NotificationHistory do
 
   def update(assigns, socket) do
     notifications =
-      Notifications.list_notifications(assigns.current_user.id, assigns[:limit] || 20)
+      Notifications.list_notifications(assigns.current_user.id, assigns[:limit] || 5)
 
     {:ok,
      socket
@@ -19,7 +19,7 @@ defmodule AppWeb.Components.NotificationHistory do
       <div class="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
         <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Notification History</h2>
       </div>
-      <div class="p-4">
+      <div class="overflow-hidden">
         <%= if Enum.empty?(@notifications) do %>
           <div class="text-center py-8">
             <div class="text-4xl mb-2">📬</div>
@@ -29,88 +29,90 @@ defmodule AppWeb.Components.NotificationHistory do
             </div>
           </div>
         <% else %>
-          <div class="space-y-3">
-            <%= for notification <- @notifications do %>
-              <div class="p-3 border border-zinc-200 dark:border-zinc-700 rounded-lg">
-                <div class="flex items-start justify-between gap-3">
-                  <div class="flex-1 min-w-0">
-                    <div class="flex flex-wrap items-center gap-2 mb-1">
-                      <span class={[
-                        "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium flex-shrink-0",
-                        notification_type_class(notification.type)
-                      ]}>
-                        {notification_type_icon(notification.type)} {format_notification_type(
-                          notification.type
-                        )}
-                      </span>
-                      <span class={[
-                        "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium flex-shrink-0",
-                        notification_status_class(notification.status)
-                      ]}>
-                        {notification_status_icon(notification.status)} {format_notification_status(
-                          notification.status
-                        )}
-                      </span>
-                      <%= if get_delivery_info(notification) do %>
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400 flex-shrink-0">
-                          {get_delivery_info(notification)}
+          <div class="max-h-96 overflow-y-auto">
+            <div class="p-4 space-y-3">
+              <%= for notification <- @notifications do %>
+                <div class="p-3 border border-zinc-200 dark:border-zinc-700 rounded-lg">
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="flex-1 min-w-0">
+                      <div class="flex flex-wrap items-center gap-2 mb-1">
+                        <span class={[
+                          "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium flex-shrink-0",
+                          notification_type_class(notification.type)
+                        ]}>
+                          {notification_type_icon(notification.type)} {format_notification_type(
+                            notification.type
+                          )}
                         </span>
+                        <span class={[
+                          "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium flex-shrink-0",
+                          notification_status_class(notification.status)
+                        ]}>
+                          {notification_status_icon(notification.status)} {format_notification_status(
+                            notification.status
+                          )}
+                        </span>
+                        <%= if get_delivery_info(notification) do %>
+                          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400 flex-shrink-0">
+                            {get_delivery_info(notification)}
+                          </span>
+                        <% end %>
+                      </div>
+
+                      <div class="mb-2">
+                        <h3 class="font-medium text-zinc-900 dark:text-zinc-100 mb-1">
+                          {notification.title}
+                        </h3>
+                        <p class="text-sm text-zinc-600 dark:text-zinc-400">
+                          {notification.body}
+                        </p>
+                      </div>
+
+                      <%= if notification.delivered_at do %>
+                        <div class="flex items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400">
+                          <span>
+                            <strong>Delivered:</strong> {format_datetime(notification.delivered_at)}
+                          </span>
+                        </div>
+                      <% end %>
+
+                      <%= if notification.failure_reason do %>
+                        <div class="mt-2 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 p-2 rounded">
+                          <strong>Error:</strong> {notification.failure_reason}
+                        </div>
+                      <% end %>
+
+                      <%= if notification.fire_incident do %>
+                        <div class="mt-2 text-xs text-blue-600 dark:text-blue-400">
+                          <strong>Related to:</strong>
+                          Fire incident at {Float.round(notification.fire_incident.center_latitude, 3)}, {Float.round(
+                            notification.fire_incident.center_longitude,
+                            3
+                          )} ({notification.fire_incident.fire_count} fires)
+                        </div>
                       <% end %>
                     </div>
 
-                    <div class="mb-2">
-                      <h3 class="font-medium text-zinc-900 dark:text-zinc-100 mb-1">
-                        {notification.title}
-                      </h3>
-                      <p class="text-sm text-zinc-600 dark:text-zinc-400">
-                        {notification.body}
-                      </p>
+                    <div class="text-xs text-zinc-400 dark:text-zinc-500 flex-shrink-0">
+                      <%= if notification.sent_at do %>
+                        {time_ago(notification.sent_at)}
+                      <% else %>
+                        {time_ago(notification.inserted_at)}
+                      <% end %>
                     </div>
-
-                    <%= if notification.delivered_at do %>
-                      <div class="flex items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400">
-                        <span>
-                          <strong>Delivered:</strong> {format_datetime(notification.delivered_at)}
-                        </span>
-                      </div>
-                    <% end %>
-
-                    <%= if notification.failure_reason do %>
-                      <div class="mt-2 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 p-2 rounded">
-                        <strong>Error:</strong> {notification.failure_reason}
-                      </div>
-                    <% end %>
-
-                    <%= if notification.fire_incident do %>
-                      <div class="mt-2 text-xs text-blue-600 dark:text-blue-400">
-                        <strong>Related to:</strong>
-                        Fire incident at {Float.round(notification.fire_incident.center_latitude, 3)}, {Float.round(
-                          notification.fire_incident.center_longitude,
-                          3
-                        )} ({notification.fire_incident.fire_count} fires)
-                      </div>
-                    <% end %>
-                  </div>
-
-                  <div class="text-xs text-zinc-400 dark:text-zinc-500 flex-shrink-0">
-                    <%= if notification.sent_at do %>
-                      {time_ago(notification.sent_at)}
-                    <% else %>
-                      {time_ago(notification.inserted_at)}
-                    <% end %>
                   </div>
                 </div>
+              <% end %>
+            </div>
+
+            <%= if length(@notifications) >= (@limit || 5) do %>
+              <div class="p-4 pt-0 text-center">
+                <p class="text-sm text-zinc-500 dark:text-zinc-400">
+                  Showing recent {length(@notifications)} notifications
+                </p>
               </div>
             <% end %>
           </div>
-
-          <%= if length(@notifications) >= (@limit || 20) do %>
-            <div class="mt-4 text-center">
-              <p class="text-sm text-zinc-500 dark:text-zinc-400">
-                Showing recent {length(@notifications)} notifications
-              </p>
-            </div>
-          <% end %>
         <% end %>
       </div>
     </div>
@@ -173,6 +175,22 @@ defmodule AppWeb.Components.NotificationHistory do
   defp get_delivery_info(notification) do
     cond do
       # Check if we have device information in the notification data
+      notification.data && notification.data["target_device_name"] &&
+          notification.data["target_device_channel"] ->
+        device_name = notification.data["target_device_name"]
+
+        channel_icon =
+          case notification.data["target_device_channel"] do
+            "webhook" -> "🪝"
+            "web_push" -> "🌐"
+            "email" -> "📧"
+            "sms" -> "📱"
+            _ -> "📤"
+          end
+
+        "#{channel_icon} #{device_name}"
+
+      # Legacy: Check if we have device information in the old format
       notification.data && notification.data["device_name"] && notification.data["device_channel"] ->
         device_name = notification.data["device_name"]
 
@@ -190,21 +208,6 @@ defmodule AppWeb.Components.NotificationHistory do
       # Fallback: Check if it's a webhook notification based on data
       notification.data && notification.data["webhook"] ->
         "🪝 Webhook"
-
-      # Check if it's a web push notification (test notifications often go to browser)
-      notification.type == "test" && (!notification.data || !notification.data["webhook"]) ->
-        "🌐 Web Push"
-
-      # For fire alerts, we could show how many devices it was sent to
-      notification.type == "fire_alert" ->
-        device_count =
-          if notification.data && notification.data["device_count"] do
-            notification.data["device_count"]
-          else
-            "All"
-          end
-
-        "📱 #{device_count} devices"
 
       true ->
         nil

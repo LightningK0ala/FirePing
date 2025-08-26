@@ -244,13 +244,172 @@ defmodule App.Notifications do
       Notification.mark_as_sent(notification)
     end
 
-    if failed_count == length(devices) and failed_count > 0 do
-      [failed_result | _] = failed_results
-      {:failed, reason} = failed_result
-      Notification.mark_as_failed(notification, reason)
-    end
+    cond do
+      # All devices failed - mark notification as failed and return error
+      failed_count == length(devices) and failed_count > 0 ->
+        [failed_result | _] = failed_results
+        {:failed, reason} = failed_result
+        Notification.mark_as_failed(notification, reason)
+        {:error, reason}
 
-    {:ok, %{sent: sent_count, failed: failed_count}}
+      # No devices to send to
+      length(devices) == 0 ->
+        {:error, "No active notification devices found for user"}
+
+      # Some or all devices succeeded
+      true ->
+        {:ok, %{sent: sent_count, failed: failed_count}}
+    end
+  end
+
+  @doc """
+  Sends a test notification to a specific device only.
+  Creates only the device notification (no original notification).
+
+  ## Examples
+
+      iex> send_test_notification_to_device(device_id, attrs)
+      {:ok, %{sent: 1, failed: 0}}
+
+  """
+  def send_test_notification_to_device(device_id, attrs) do
+    case get_user_notification_device(attrs.user_id, device_id) do
+      nil ->
+        {:error, "Device not found or does not belong to user"}
+
+      device ->
+        # Create device-specific notification data
+        device_data =
+          Map.merge(attrs.data || %{}, %{
+            "target_device_id" => device.id,
+            "target_device_name" => device.name,
+            "target_device_channel" => device.channel,
+            "is_test_notification" => true
+          })
+
+        # Add webhook URL if it's a webhook device
+        device_data =
+          if device.channel == "webhook" do
+            Map.merge(device_data, %{
+              "webhook_url" => device.config["url"],
+              "webhook_attempted_at" => DateTime.utc_now() |> DateTime.to_iso8601()
+            })
+          else
+            device_data
+          end
+
+        # Create the device-specific notification
+        device_notification_attrs = %{
+          user_id: attrs.user_id,
+          fire_incident_id: attrs[:fire_incident_id],
+          title: attrs.title,
+          body: attrs.body,
+          type: attrs.type,
+          data: device_data
+        }
+
+        case create_notification(device_notification_attrs) do
+          {:ok, device_notification} ->
+            case send_to_device(device_notification, device) do
+              :ok ->
+                NotificationDevice.update_last_used(device)
+                Notification.mark_as_sent(device_notification)
+                {:ok, %{sent: 1, failed: 0}}
+
+              {:error, reason} ->
+                Notification.mark_as_failed(device_notification, reason)
+                {:error, reason}
+            end
+
+          {:error, changeset} ->
+            # Log the error for debugging
+            require Logger
+            Logger.error("Failed to create test notification", changeset: changeset)
+            {:error, "Failed to create test notification"}
+        end
+    end
+  end
+
+  @doc """
+  Sends notifications to all devices for a user without creating an original notification.
+  Creates only device notifications (one per device).
+  Used by the notification orchestrator for fire alerts.
+
+  ## Examples
+
+      iex> send_notifications_to_devices(attrs)
+      {:ok, %{sent: 2, failed: 0}}
+
+  """
+  def send_notifications_to_devices(attrs) do
+    devices = list_active_notification_devices(attrs.user_id)
+
+    if length(devices) == 0 do
+      {:error, "No active notification devices found for user"}
+    else
+      # Create and send notifications for each device
+      results =
+        Enum.map(devices, fn device ->
+          create_and_send_device_notification(attrs, device)
+        end)
+
+      sent_count = Enum.count(results, &match?({:ok, _}, &1))
+      failed_count = Enum.count(results, &match?({:error, _}, &1))
+
+      {:ok, %{sent: sent_count, failed: failed_count}}
+    end
+  end
+
+  defp create_and_send_device_notification(attrs, device) do
+    # Create device-specific notification data
+    device_data =
+      Map.merge(attrs.data || %{}, %{
+        "target_device_id" => device.id,
+        "target_device_name" => device.name,
+        "target_device_channel" => device.channel,
+        "is_device_notification" => true
+      })
+
+    # Add webhook URL if it's a webhook device
+    device_data =
+      if device.channel == "webhook" do
+        Map.merge(device_data, %{
+          "webhook_url" => device.config["url"],
+          "webhook_attempted_at" => DateTime.utc_now() |> DateTime.to_iso8601()
+        })
+      else
+        device_data
+      end
+
+    # Create the device-specific notification
+    device_notification_attrs = %{
+      user_id: attrs.user_id,
+      fire_incident_id: attrs.fire_incident_id,
+      title: attrs.title,
+      body: attrs.body,
+      type: attrs.type,
+      data: device_data
+    }
+
+    case create_notification(device_notification_attrs) do
+      {:ok, device_notification} ->
+        case send_to_device(device_notification, device) do
+          :ok ->
+            NotificationDevice.update_last_used(device)
+            Notification.mark_as_sent(device_notification)
+            {:ok, device_notification}
+
+          {:error, reason} ->
+            Notification.mark_as_failed(device_notification, reason)
+            {:error, reason}
+        end
+
+      {:error, changeset} ->
+        # Log the error for debugging
+        require Logger
+        Logger.error("Failed to create device notification", changeset: changeset)
+        {:error, "Failed to create device notification"}
+    end
   end
 
   defp list_active_notification_devices(user_id) do

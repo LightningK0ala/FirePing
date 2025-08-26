@@ -4,6 +4,9 @@ export
 
 .PHONY: help setup dev spec-dev test test-watch clean db-up db-ready db-down db-reset format check import-fires admin-grant admin-revoke admin-list fire-fetch fire-debug fire-count fire-test up down build logs
 
+compile: ## Compile the project
+	docker compose exec app sh -c 'mix compile'
+
 help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' Makefile | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 

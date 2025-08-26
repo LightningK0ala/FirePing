@@ -195,7 +195,7 @@ defmodule App.NotificationsTest do
         send_notification: fn _notification, _device ->
           {:error, "HTTP 500"}
         end do
-        assert {:ok, %{sent: 0, failed: 1}} = Notifications.send_notification(notification)
+        assert {:error, "HTTP 500"} = Notifications.send_notification(notification)
       end
     end
   end

@@ -1,6 +1,6 @@
 defmodule AppWeb.AuthLive.Dashboard do
   use AppWeb, :live_view
-  alias App.{Location, Notifications, Notification, NotificationDevice}
+  alias App.{Location, Notifications}
 
   def mount(_params, _session, socket) do
     # Subscribe to notifications for this user
@@ -24,13 +24,6 @@ defmodule AppWeb.AuthLive.Dashboard do
       |> assign(:incidents, incidents)
       |> assign(:active_incidents, active_incidents)
       |> assign(:ended_incidents, ended_incidents)
-      |> assign(:show_form, false)
-      |> assign(:form, to_form(%{}))
-      |> assign(:editing_location_id, nil)
-      |> assign(:updating_location_id, nil)
-      |> assign(:updating_location_data, nil)
-      |> assign(:creating_location, false)
-      |> assign(:deleting_location_id, nil)
       |> push_data_to_map(locations, fires)
 
     {:ok, socket}
@@ -42,83 +35,15 @@ defmodule AppWeb.AuthLive.Dashboard do
      |> redirect(external: "/session/logout")}
   end
 
-  def handle_event("show_form", _params, socket) do
-    {:noreply, assign(socket, :show_form, true)}
-  end
+  def handle_event("trigger_location_modal", _params, socket) do
+    # Send message to locations widget to show the modal
+    send_update(AppWeb.Components.LocationsWidget,
+      id: "locations-widget",
+      current_user: socket.assigns.current_user,
+      action: :show_modal
+    )
 
-  def handle_event("hide_form", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(:show_form, false)
-     |> push_event("clear_radius_preview", %{})}
-  end
-
-  def handle_event("create_location", params, socket) do
-    # Set loading state and send immediate response
-    socket_with_loading = assign(socket, :creating_location, true)
-
-    # Send the loading state immediately
-    send(self(), {:complete_create, params})
-
-    {:noreply, socket_with_loading}
-  end
-
-  def handle_event("delete_location", %{"id" => id}, socket) do
-    # Set loading state and send immediate response
-    socket_with_loading = assign(socket, :deleting_location_id, id)
-
-    # Send the loading state immediately
-    send(self(), {:complete_delete, id})
-
-    {:noreply, socket_with_loading}
-  end
-
-  def handle_event("start_edit_location", %{"id" => id}, socket) do
-    {:noreply, assign(socket, :editing_location_id, id)}
-  end
-
-  def handle_event("cancel_edit_location", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(:editing_location_id, nil)
-     |> push_event("clear_radius_preview", %{})}
-  end
-
-  def handle_event("update_location", params, socket) do
-    id = params["_id"]
-    location = App.Repo.get(Location, id)
-
-    # Parse the radius to store the submitted values
-    radius_meters =
-      cond do
-        is_binary(params["radius"]) and params["radius"] != "" ->
-          String.to_integer(params["radius"])
-
-        is_binary(params["radius_km"]) and params["radius_km"] != "" ->
-          params["radius_km"] |> parse_float() |> Kernel.*(1000.0) |> Float.round() |> trunc()
-
-        true ->
-          location.radius
-      end
-
-    # Store the submitted form data for display during loading
-    updating_data = %{
-      name: params["name"],
-      latitude: parse_float(params["latitude"]),
-      longitude: parse_float(params["longitude"]),
-      radius: radius_meters
-    }
-
-    # Set loading state and send immediate response
-    socket_with_loading =
-      socket
-      |> assign(:updating_location_id, id)
-      |> assign(:updating_location_data, updating_data)
-
-    # Send the loading state immediately
-    send(self(), {:complete_update, params})
-
-    {:noreply, socket_with_loading}
+    {:noreply, socket}
   end
 
   def handle_event("center_map_on_incident", params, socket) do
@@ -206,62 +131,6 @@ defmodule AppWeb.AuthLive.Dashboard do
      })}
   end
 
-  def handle_info({:complete_create, params}, socket) do
-    radius_meters =
-      cond do
-        is_binary(params["radius"]) and params["radius"] != "" ->
-          String.to_integer(params["radius"])
-
-        is_binary(params["radius_km"]) and params["radius_km"] != "" ->
-          params["radius_km"] |> parse_float() |> Kernel.*(1000.0) |> Float.round() |> trunc()
-
-        true ->
-          50_000
-      end
-
-    attrs = %{
-      "name" => params["name"],
-      "latitude" => parse_float(params["latitude"]),
-      "longitude" => parse_float(params["longitude"]),
-      "radius" => radius_meters
-    }
-
-    case Location.create_location(socket.assigns.current_user, attrs) do
-      {:ok, _location} ->
-        {:noreply,
-         socket
-         |> reload_locations_and_fires()
-         |> assign(:show_form, false)
-         |> assign(:creating_location, false)
-         |> put_flash(:info, "Location added successfully!")}
-
-      {:error, changeset} ->
-        {:noreply,
-         socket
-         |> assign(:form, to_form(changeset))
-         |> assign(:creating_location, false)
-         |> put_flash(:error, "Error creating location")}
-    end
-  end
-
-  def handle_info({:complete_delete, id}, socket) do
-    location = App.Repo.get(Location, id)
-
-    case Location.delete_location(location) do
-      {:ok, _} ->
-        {:noreply,
-         socket
-         |> reload_locations_and_fires()
-         |> assign(:deleting_location_id, nil)}
-
-      {:error, _} ->
-        {:noreply,
-         socket
-         |> assign(:deleting_location_id, nil)
-         |> put_flash(:error, "Error deleting location")}
-    end
-  end
-
   def handle_info({:send_test_notification, device_id}, socket) do
     try do
       case Notifications.get_user_notification_device(socket.assigns.current_user.id, device_id) do
@@ -272,6 +141,7 @@ defmodule AppWeb.AuthLive.Dashboard do
           # Create a test notification with device context
           test_notification_attrs = %{
             user_id: socket.assigns.current_user.id,
+            fire_incident_id: nil,
             title: "Test Notification",
             body: "This is a test notification to verify your device is working correctly.",
             type: "test",
@@ -283,41 +153,29 @@ defmodule AppWeb.AuthLive.Dashboard do
             }
           }
 
-          case Notifications.create_notification(test_notification_attrs) do
-            {:ok, notification} ->
-              # Route to the appropriate notification sender based on device channel
-              result =
-                case device.channel do
-                  "web_push" ->
-                    App.WebPush.send_notification(notification, device)
-
-                  "webhook" ->
-                    App.Webhook.send_notification(notification, device)
-
-                  _ ->
-                    {:error, "Unsupported notification channel: #{device.channel}"}
-                end
-
-              case result do
-                :ok ->
-                  # Update the device's last_used_at timestamp
-                  NotificationDevice.update_last_used(device)
-                  # Mark the notification as sent
-                  Notification.mark_as_sent(notification)
-
+          # Use the test notification function that creates only device notifications
+          case Notifications.send_test_notification_to_device(device.id, test_notification_attrs) do
+            {:ok, %{sent: sent_count, failed: failed_count}} ->
+              cond do
+                sent_count > 0 and failed_count == 0 ->
                   {:noreply,
                    put_flash(socket, :info, "Test notification sent to #{device.name}!")}
 
-                {:error, reason} ->
-                  # Mark the notification as failed
-                  Notification.mark_as_failed(notification, reason)
-
+                sent_count > 0 and failed_count > 0 ->
                   {:noreply,
-                   put_flash(socket, :error, "Failed to send test notification: #{reason}")}
+                   put_flash(
+                     socket,
+                     :warning,
+                     "Test notification partially sent to #{device.name} (#{failed_count} failures)"
+                   )}
+
+                sent_count == 0 and failed_count > 0 ->
+                  {:noreply,
+                   put_flash(socket, :error, "Failed to send test notification to #{device.name}")}
               end
 
-            {:error, _changeset} ->
-              {:noreply, put_flash(socket, :error, "Failed to create test notification")}
+            {:error, reason} ->
+              {:noreply, put_flash(socket, :error, "Failed to send test notification: #{reason}")}
           end
       end
     rescue
@@ -347,48 +205,9 @@ defmodule AppWeb.AuthLive.Dashboard do
     {:noreply, socket}
   end
 
-  def handle_info({:complete_update, params}, socket) do
-    id = params["_id"]
-    location = App.Repo.get(Location, id)
-
-    radius_meters =
-      cond do
-        is_binary(params["radius"]) and params["radius"] != "" ->
-          String.to_integer(params["radius"])
-
-        is_binary(params["radius_km"]) and params["radius_km"] != "" ->
-          params["radius_km"] |> parse_float() |> Kernel.*(1000.0) |> Float.round() |> trunc()
-
-        true ->
-          location.radius
-      end
-
-    attrs = %{
-      "name" => params["name"],
-      "latitude" => parse_float(params["latitude"]),
-      "longitude" => parse_float(params["longitude"]),
-      "radius" => radius_meters
-    }
-
-    case Location.update_location(location, attrs) do
-      {:ok, _updated} ->
-        {:noreply,
-         socket
-         |> reload_locations_and_fires()
-         |> assign(:editing_location_id, nil)
-         |> assign(:updating_location_id, nil)
-         |> assign(:updating_location_data, nil)
-         |> push_event("clear_radius_preview", %{})
-         |> put_flash(:info, "Location updated successfully!")}
-
-      {:error, changeset} ->
-        {:noreply,
-         socket
-         |> assign(:form, to_form(changeset))
-         |> assign(:updating_location_id, nil)
-         |> assign(:updating_location_data, nil)
-         |> put_flash(:error, "Error updating location")}
-    end
+  def handle_info({:location_updated}, socket) do
+    # Reload locations and fires when a location is updated
+    {:noreply, reload_locations_and_fires(socket)}
   end
 
   defp reload_locations_and_fires(socket) do
@@ -413,6 +232,26 @@ defmodule AppWeb.AuthLive.Dashboard do
     case Float.parse(str) do
       {float, _} -> float
       :error -> String.to_integer(str) * 1.0
+    end
+  end
+
+  defp calculate_zoom_for_radius(radius_meters) do
+    # Calculate appropriate zoom level to show the location's monitoring area
+    cond do
+      # > 100km
+      radius_meters > 100_000 -> 7
+      # > 50km
+      radius_meters > 50_000 -> 8
+      # > 20km
+      radius_meters > 20_000 -> 10
+      # > 10km
+      radius_meters > 10_000 -> 11
+      # > 5km
+      radius_meters > 5_000 -> 12
+      # > 2km
+      radius_meters > 2_000 -> 13
+      # <= 2km
+      true -> 14
     end
   end
 
@@ -461,41 +300,6 @@ defmodule AppWeb.AuthLive.Dashboard do
     end
   end
 
-  defp get_display_location(location, updating_location_id, updating_location_data) do
-    if updating_location_data && to_string(location.id) == to_string(updating_location_id) do
-      # Use the updating data during loading state
-      %{
-        name: updating_location_data.name,
-        latitude: updating_location_data.latitude,
-        longitude: updating_location_data.longitude,
-        radius: updating_location_data.radius
-      }
-    else
-      # Use the actual location data
-      location
-    end
-  end
-
-  defp calculate_zoom_for_radius(radius_meters) do
-    # Calculate appropriate zoom level to show the location's monitoring area
-    cond do
-      # > 100km
-      radius_meters > 100_000 -> 7
-      # > 50km
-      radius_meters > 50_000 -> 8
-      # > 20km
-      radius_meters > 20_000 -> 10
-      # > 10km
-      radius_meters > 10_000 -> 11
-      # > 5km
-      radius_meters > 5_000 -> 12
-      # > 2km
-      radius_meters > 2_000 -> 13
-      # <= 2km
-      true -> 14
-    end
-  end
-
   def render(assigns) do
     ~H"""
     <div class="space-y-6">
@@ -532,7 +336,7 @@ defmodule AppWeb.AuthLive.Dashboard do
         <div class={"bg-white dark:bg-zinc-950 rounded-lg shadow-sm ring-1 #{if Enum.empty?(@locations), do: "ring-blue-300 dark:ring-blue-700 bg-blue-50 dark:bg-blue-950", else: "ring-zinc-200 dark:ring-zinc-800"}"}>
           <div class="p-6 text-center">
             <button
-              phx-click="show_form"
+              phx-click="trigger_location_modal"
               class={"w-full h-full flex flex-col items-center justify-center transition-colors group #{if Enum.empty?(@locations), do: "text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300", else: "text-zinc-600 dark:text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400"}"}
             >
               <%= if Enum.empty?(@locations) do %>
@@ -604,14 +408,14 @@ defmodule AppWeb.AuthLive.Dashboard do
     <!-- Map and Locations Management -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Interactive Map -->
-        <div class={"lg:col-span-2 bg-white dark:bg-zinc-950 rounded-lg shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-800 #{if Enum.empty?(@locations) and not @show_form, do: "opacity-50"}"}>
+        <div class={"lg:col-span-2 bg-white dark:bg-zinc-950 rounded-lg shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-800 #{if Enum.empty?(@locations), do: "opacity-50"}"}>
           <div class="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
-            <h2 class={"text-lg font-semibold #{if Enum.empty?(@locations) and not @show_form, do: "text-zinc-500 dark:text-zinc-500", else: "text-zinc-900 dark:text-zinc-100"}"}>
+            <h2 class={"text-lg font-semibold #{if Enum.empty?(@locations), do: "text-zinc-500 dark:text-zinc-500", else: "text-zinc-900 dark:text-zinc-100"}"}>
               Fire Monitoring Map
             </h2>
           </div>
           <div class="p-4 relative">
-            <%= if Enum.empty?(@locations) and not @show_form do %>
+            <%= if Enum.empty?(@locations) do %>
               <div class="absolute inset-0 bg-zinc-100 dark:bg-zinc-800 rounded-md flex items-center justify-center z-10">
                 <div class="text-center">
                   <div class="text-3xl mb-2">🗺️</div>
@@ -626,13 +430,7 @@ defmodule AppWeb.AuthLive.Dashboard do
               id="locations-map"
               phx-hook="Map"
               phx-update="ignore"
-              data-editing-id={@editing_location_id}
               class="h-[400px] w-full rounded-md"
-              style={
-                if @show_form or @editing_location_id,
-                  do: "cursor: crosshair !important;",
-                  else: "cursor: default !important;"
-              }
             >
             </div>
             <!-- Map Legend -->
@@ -659,307 +457,12 @@ defmodule AppWeb.AuthLive.Dashboard do
           </div>
         </div>
         
-    <!-- Locations List -->
-        <div class="bg-white dark:bg-zinc-950 rounded-lg shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-800">
-          <div class="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
-            <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Your Locations</h2>
-          </div>
-          <div class="overflow-hidden">
-            <%= if Enum.empty?(@locations) and not @show_form do %>
-              <div class="text-center py-8 text-zinc-500">
-                <div class="mb-2">📍</div>
-                <p>No locations yet.</p>
-                <p class="text-sm">Add your first location to start monitoring.</p>
-              </div>
-            <% else %>
-              <div class="max-h-96 overflow-y-auto">
-                <%= if @show_form do %>
-                  <div class="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-blue-50 dark:bg-blue-950">
-                    <form phx-submit="create_location" class="space-y-3">
-                      <div>
-                        <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-200 mb-1">
-                          Name
-                        </label>
-                        <input
-                          type="text"
-                          name="name"
-                          placeholder="Home, Office, etc."
-                          class="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 rounded-md focus:border-zinc-400 focus:ring-0 text-sm"
-                          required
-                        />
-                      </div>
-                      <div class="grid grid-cols-2 gap-2">
-                        <div>
-                          <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-200 mb-1">
-                            Latitude
-                          </label>
-                          <input
-                            type="number"
-                            name="latitude"
-                            id="latitude-input"
-                            step="0.000001"
-                            placeholder="37.7749"
-                            class="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 rounded-md focus:border-zinc-400 focus:ring-0 text-sm"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-200 mb-1">
-                            Longitude
-                          </label>
-                          <input
-                            type="number"
-                            name="longitude"
-                            id="longitude-input"
-                            step="0.000001"
-                            placeholder="-122.4194"
-                            class="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 rounded-md focus:border-zinc-400 focus:ring-0 text-sm"
-                            required
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <button
-                          type="button"
-                          id="use-my-location"
-                          phx-hook="Geolocation"
-                          class="inline-flex items-center rounded-md bg-zinc-700 px-3 py-1 text-white text-xs font-medium shadow hover:bg-zinc-800 transition-colors"
-                        >
-                          📍 Use My Location
-                        </button>
-                        <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-                          You can also click on the map to set the coordinates.
-                        </p>
-                      </div>
-                      <div>
-                        <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-200 mb-1">
-                          Radius (km)
-                        </label>
-                        <div class="flex items-center gap-2">
-                          <input
-                            id="radius-input"
-                            name="radius"
-                            type="range"
-                            min="10000"
-                            max="500000"
-                            step="10000"
-                            value="50000"
-                            class="flex-1 accent-blue-600"
-                            phx-hook="RadiusPreview"
-                          />
-                          <input
-                            id="radius-number"
-                            type="number"
-                            min="10"
-                            step="10"
-                            name="radius_km"
-                            value="50"
-                            class="w-16 px-2 py-1 border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 rounded-md focus:border-zinc-400 focus:ring-0 text-sm"
-                          />
-                        </div>
-                      </div>
-                      <div class="flex gap-2">
-                        <button
-                          type="submit"
-                          disabled={@creating_location}
-                          class="flex-1 inline-flex items-center justify-center rounded-md bg-blue-600 px-3 py-2 text-white text-sm font-medium shadow hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                          <%= if @creating_location do %>
-                            <div class="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2">
-                            </div>
-                            Adding...
-                          <% else %>
-                            Add Location
-                          <% end %>
-                        </button>
-                        <button
-                          type="button"
-                          phx-click="hide_form"
-                          disabled={@creating_location}
-                          class="flex-1 inline-flex items-center justify-center rounded-md bg-zinc-500 px-3 py-2 text-white text-sm font-medium shadow hover:bg-zinc-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </form>
-                  </div>
-                <% end %>
-                <%= for location <- @locations do %>
-                  <%= if @editing_location_id == location.id do %>
-                    <% display_location =
-                      get_display_location(location, @updating_location_id, @updating_location_data) %>
-                    <div class="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900">
-                      <form
-                        id={"edit-location-form-#{location.id}"}
-                        phx-submit="update_location"
-                        class="space-y-3"
-                      >
-                        <input type="hidden" name="_id" value={location.id} />
-                        <div>
-                          <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-200 mb-1">
-                            Name
-                          </label>
-                          <input
-                            type="text"
-                            name="name"
-                            value={display_location.name}
-                            class="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 rounded-md focus:border-zinc-400 focus:ring-0 text-sm"
-                            required
-                          />
-                        </div>
-                        <div class="grid grid-cols-2 gap-2">
-                          <div>
-                            <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-200 mb-1">
-                              Latitude
-                            </label>
-                            <input
-                              id={"edit-latitude-input-#{location.id}"}
-                              type="number"
-                              step="0.000001"
-                              name="latitude"
-                              value={display_location.latitude}
-                              class="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 rounded-md focus:border-zinc-400 focus:ring-0 text-sm"
-                              required
-                            />
-                          </div>
-                          <div>
-                            <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-200 mb-1">
-                              Longitude
-                            </label>
-                            <input
-                              id={"edit-longitude-input-#{location.id}"}
-                              type="number"
-                              step="0.000001"
-                              name="longitude"
-                              value={display_location.longitude}
-                              class="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 rounded-md focus:border-zinc-400 focus:ring-0 text-sm"
-                              required
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <button
-                            type="button"
-                            id={"use-my-location-edit-#{location.id}"}
-                            phx-hook="Geolocation"
-                            class="inline-flex items-center rounded-md bg-zinc-700 px-3 py-1 text-white text-xs font-medium shadow hover:bg-zinc-800 transition-colors"
-                          >
-                            📍 Use My Location
-                          </button>
-                        </div>
-                        <div>
-                          <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-200 mb-1">
-                            Radius (km)
-                          </label>
-                          <div class="flex items-center gap-2">
-                            <input
-                              id={"edit-radius-input-#{location.id}"}
-                              name="radius"
-                              type="range"
-                              min="10000"
-                              max="500000"
-                              step="10000"
-                              value={display_location.radius}
-                              class="flex-1 accent-blue-600"
-                              phx-hook="RadiusPreview"
-                            />
-                            <input
-                              id={"edit-radius-number-#{location.id}"}
-                              type="number"
-                              min="10"
-                              step="10"
-                              name="radius_km"
-                              value={div(display_location.radius, 1000)}
-                              class="w-16 px-2 py-1 border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 rounded-md focus:border-zinc-400 focus:ring-0 text-sm"
-                            />
-                          </div>
-                        </div>
-                        <div class="flex gap-2">
-                          <button
-                            type="submit"
-                            disabled={
-                              @updating_location_id != nil and
-                                to_string(@updating_location_id) == to_string(location.id)
-                            }
-                            class="flex-1 inline-flex items-center justify-center rounded-md bg-emerald-600 px-3 py-2 text-white text-sm font-medium shadow hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            <%= if @updating_location_id != nil and to_string(@updating_location_id) == to_string(location.id) do %>
-                              <div class="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2">
-                              </div>
-                              Saving...
-                            <% else %>
-                              Save
-                            <% end %>
-                          </button>
-                          <button
-                            type="button"
-                            phx-click="cancel_edit_location"
-                            disabled={
-                              @updating_location_id != nil and
-                                to_string(@updating_location_id) == to_string(location.id)
-                            }
-                            class="flex-1 inline-flex items-center justify-center rounded-md bg-zinc-500 px-3 py-2 text-white text-sm font-medium shadow hover:bg-zinc-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </form>
-                    </div>
-                  <% else %>
-                    <div class="p-4 border-b border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors">
-                      <div class="flex items-start justify-between gap-3">
-                        <div
-                          class="flex-1 min-w-0 cursor-pointer"
-                          phx-click="center_map_on_location"
-                          phx-value-lat={location.latitude}
-                          phx-value-lng={location.longitude}
-                          phx-value-radius={location.radius}
-                          phx-value-location-id={location.id}
-                        >
-                          <h4 class="font-medium text-zinc-900 dark:text-zinc-100 truncate">
-                            {location.name}
-                          </h4>
-                          <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-                            {Float.round(location.latitude, 3)}, {Float.round(location.longitude, 3)}
-                          </p>
-                          <p class="text-xs text-zinc-500 dark:text-zinc-500 mt-1">
-                            {div(location.radius, 1000)}km radius
-                          </p>
-                        </div>
-                        <div class="flex items-center gap-1">
-                          <button
-                            phx-click="start_edit_location"
-                            phx-value-id={location.id}
-                            class="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            phx-click="delete_location"
-                            phx-value-id={location.id}
-                            disabled={
-                              @deleting_location_id != nil and
-                                to_string(@deleting_location_id) == to_string(location.id)
-                            }
-                            class="p-1 text-zinc-400 hover:text-rose-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            data-confirm="Are you sure you want to delete this location?"
-                          >
-                            <%= if @deleting_location_id != nil and to_string(@deleting_location_id) == to_string(location.id) do %>
-                              <div class="inline-block animate-spin rounded-full h-3 w-3 border border-zinc-400 border-b-transparent">
-                              </div>
-                            <% else %>
-                              🗑️
-                            <% end %>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  <% end %>
-                <% end %>
-              </div>
-            <% end %>
-          </div>
-        </div>
+    <!-- Locations Widget -->
+        <.live_component
+          module={AppWeb.Components.LocationsWidget}
+          id="locations-widget"
+          current_user={@current_user}
+        />
       </div>
       
     <!-- Statistics Cards -->
@@ -1188,7 +691,7 @@ defmodule AppWeb.AuthLive.Dashboard do
         </div>
       </div>
       
-    <!-- Notification Devices and Settings -->
+    <!-- Notification Devices and Notification History -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <!-- Notification Devices Widget -->
         <.live_component
@@ -1197,7 +700,17 @@ defmodule AppWeb.AuthLive.Dashboard do
           current_user={@current_user}
         />
         
-    <!-- Settings Card -->
+    <!-- Notification History -->
+        <.live_component
+          module={AppWeb.Components.NotificationHistory}
+          id="notification-history"
+          current_user={@current_user}
+          limit={5}
+        />
+      </div>
+      
+    <!-- Account Settings -->
+      <div class="grid grid-cols-1 gap-6">
         <div class="bg-white dark:bg-zinc-950 rounded-lg shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-800">
           <div class="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
             <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Account</h2>
@@ -1217,16 +730,6 @@ defmodule AppWeb.AuthLive.Dashboard do
             </div>
           </div>
         </div>
-      </div>
-      
-    <!-- Notification History -->
-      <div class="grid grid-cols-1 gap-6">
-        <.live_component
-          module={AppWeb.Components.NotificationHistory}
-          id="notification-history"
-          current_user={@current_user}
-          limit={10}
-        />
       </div>
     </div>
     """

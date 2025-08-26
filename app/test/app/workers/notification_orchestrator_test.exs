@@ -1,5 +1,5 @@
 defmodule App.Workers.NotificationOrchestratorTest do
-  use App.DataCase, async: true
+  use App.DataCase
   import Mock
 
   alias App.{
@@ -121,8 +121,7 @@ defmodule App.Workers.NotificationOrchestratorTest do
 
       # Mock the notification sending to avoid actual web push calls
       with_mock App.Notifications,
-        create_notification: fn _attrs -> {:ok, %{id: "test-notification-id"}} end,
-        send_notification: fn _notification -> {:ok, %{sent: 1, failed: 0}} end do
+        send_notifications_to_devices: fn _attrs -> {:ok, %{sent: 1, failed: 0}} end do
         result = NotificationOrchestrator.perform(job)
         assert result == :ok
       end
@@ -147,8 +146,7 @@ defmodule App.Workers.NotificationOrchestratorTest do
 
       # Mock the notification sending to avoid actual web push calls
       with_mock App.Notifications,
-        create_notification: fn _attrs -> {:ok, %{id: "test-notification-id"}} end,
-        send_notification: fn _notification -> {:ok, %{sent: 1, failed: 0}} end do
+        send_notifications_to_devices: fn _attrs -> {:ok, %{sent: 1, failed: 0}} end do
         result = NotificationOrchestrator.perform(job)
         assert result == :ok
       end
@@ -167,8 +165,7 @@ defmodule App.Workers.NotificationOrchestratorTest do
 
       # Mock the notification sending to avoid actual web push calls
       with_mock App.Notifications,
-        create_notification: fn _attrs -> {:ok, %{id: "test-notification-id"}} end,
-        send_notification: fn _notification -> {:ok, %{sent: 1, failed: 0}} end do
+        send_notifications_to_devices: fn _attrs -> {:ok, %{sent: 1, failed: 0}} end do
         result = NotificationOrchestrator.perform(job)
         assert result == :ok
       end

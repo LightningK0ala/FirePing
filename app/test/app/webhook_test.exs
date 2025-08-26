@@ -1,5 +1,5 @@
 defmodule App.WebhookTest do
-  use App.DataCase, async: true
+  use App.DataCase
 
   alias App.{Webhook, Notification, NotificationDevice}
 
@@ -20,7 +20,7 @@ defmodule App.WebhookTest do
   describe "webhook sending" do
     test "send_notification/2 sends HTTP POST to webhook URL" do
       with_mock HTTPoison, [:passthrough],
-        post: fn url, payload, headers ->
+        post: fn url, payload, headers, _opts ->
           assert url == "https://example.com/webhook"
           assert headers == [{"Content-Type", "application/json"}]
 
@@ -58,8 +58,8 @@ defmodule App.WebhookTest do
 
     test "send_notification/2 returns error for HTTP failure" do
       with_mock HTTPoison, [:passthrough],
-        post: fn _url, _payload, _headers ->
-          {:ok, %{status_code: 500}}
+        post: fn _url, _payload, _headers, _opts ->
+          {:ok, %{status_code: 403}}
         end do
         notification = %Notification{
           id: "test-notification-id",
@@ -75,13 +75,13 @@ defmodule App.WebhookTest do
           config: %{"url" => "https://example.com/webhook"}
         }
 
-        assert {:error, "HTTP 500"} = Webhook.send_notification(notification, device)
+        assert {:error, "HTTP 403"} = Webhook.send_notification(notification, device)
       end
     end
 
     test "send_notification/2 returns error for network failure" do
       with_mock HTTPoison, [:passthrough],
-        post: fn _url, _payload, _headers ->
+        post: fn _url, _payload, _headers, _opts ->
           {:error, %HTTPoison.Error{reason: :timeout}}
         end do
         notification = %Notification{

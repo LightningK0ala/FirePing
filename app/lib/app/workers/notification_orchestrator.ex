@@ -408,22 +408,17 @@ defmodule App.Workers.NotificationOrchestrator do
       }
     }
 
-    case Notifications.create_notification(notification_attrs) do
-      {:ok, notification} ->
-        # Send to all user's devices
-        case Notifications.send_notification(notification) do
-          {:ok, %{sent: _sent_count, failed: failed_count}} ->
-            if failed_count > 0 do
-              Logger.warning("Some notification devices failed for user #{user.id}",
-                failed: failed_count
-              )
-            end
-
-            {:ok, 1}
-
-          {:error, reason} ->
-            {:error, reason}
+    # Send to all user's devices using device-only notifications
+    case Notifications.send_notifications_to_devices(notification_attrs) do
+      {:ok, %{sent: sent_count, failed: failed_count}} ->
+        if failed_count > 0 do
+          Logger.warning("Some notification devices failed for user #{user.id}",
+            sent: sent_count,
+            failed: failed_count
+          )
         end
+
+        {:ok, 1}
 
       {:error, reason} ->
         {:error, reason}
@@ -485,22 +480,17 @@ defmodule App.Workers.NotificationOrchestrator do
       }
     }
 
-    case Notifications.create_notification(notification_attrs) do
-      {:ok, notification} ->
-        # Send to all user's devices
-        case Notifications.send_notification(notification) do
-          {:ok, %{sent: _sent_count, failed: failed_count}} ->
-            if failed_count > 0 do
-              Logger.warning("Some notification devices failed for user #{user.id}",
-                failed: failed_count
-              )
-            end
-
-            {:ok, 1}
-
-          {:error, reason} ->
-            {:error, reason}
+    # Send to all user's devices using device-only notifications
+    case Notifications.send_notifications_to_devices(notification_attrs) do
+      {:ok, %{sent: sent_count, failed: failed_count}} ->
+        if failed_count > 0 do
+          Logger.warning("Some notification devices failed for user #{user.id}",
+            sent: sent_count,
+            failed: failed_count
+          )
         end
+
+        {:ok, 1}
 
       {:error, reason} ->
         {:error, reason}
@@ -663,28 +653,21 @@ defmodule App.Workers.NotificationOrchestrator do
       data: notification_data
     }
 
-    case Notifications.create_notification(notification_attrs) do
-      {:ok, notification} ->
-        # Send to all user's devices
-        case Notifications.send_notification(notification) do
-          {:ok, %{sent: sent_count, failed: failed_count}} ->
-            if failed_count > 0 do
-              Logger.warning("Some notification devices failed for user #{user_id}",
-                sent: sent_count,
-                failed: failed_count
-              )
-            end
-
-            {:ok, notification}
-
-          {:error, reason} ->
-            Logger.error("Failed to send notification to user #{user_id}", reason: reason)
-            {:error, reason}
+    # Send to all user's devices using device-only notifications
+    case Notifications.send_notifications_to_devices(notification_attrs) do
+      {:ok, %{sent: sent_count, failed: failed_count}} ->
+        if failed_count > 0 do
+          Logger.warning("Some notification devices failed for user #{user_id}",
+            sent: sent_count,
+            failed: failed_count
+          )
         end
 
-      {:error, changeset} ->
-        Logger.error("Failed to create notification for user #{user_id}", changeset: changeset)
-        {:error, changeset}
+        {:ok, notification_attrs}
+
+      {:error, reason} ->
+        Logger.error("Failed to send notification to user #{user_id}", reason: reason)
+        {:error, reason}
     end
   end
 

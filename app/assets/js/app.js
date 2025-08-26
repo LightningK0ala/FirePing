@@ -96,8 +96,36 @@ Hooks.Geolocation = {
         return;
       }
 
-      const latInput = document.getElementById("latitude-input");
-      const lngInput = document.getElementById("longitude-input");
+      // Find the appropriate input fields based on the button context
+      let latInput, lngInput;
+
+      // Check if this is a modal button
+      if (useLocationBtn.id === "modal-use-my-location") {
+        latInput = document.getElementById("modal-latitude-input");
+        lngInput = document.getElementById("modal-longitude-input");
+      } else if (
+        useLocationBtn.id &&
+        useLocationBtn.id.startsWith("use-my-location-edit-")
+      ) {
+        // This is an edit form button
+        const locationId = useLocationBtn.id.replace(
+          "use-my-location-edit-",
+          ""
+        );
+        latInput = document.getElementById(`edit-latitude-input-${locationId}`);
+        lngInput = document.getElementById(
+          `edit-longitude-input-${locationId}`
+        );
+      } else {
+        // Fallback to original form
+        latInput = document.getElementById("latitude-input");
+        lngInput = document.getElementById("longitude-input");
+      }
+
+      if (!latInput || !lngInput) {
+        alert("Could not find location input fields.");
+        return;
+      }
 
       // Show loading state
       useLocationBtn.textContent = "🔄 Getting location...";
@@ -107,6 +135,9 @@ Hooks.Geolocation = {
         function (position) {
           latInput.value = position.coords.latitude.toFixed(6);
           lngInput.value = position.coords.longitude.toFixed(6);
+
+          // Trigger radius preview update
+          window.dispatchEvent(new CustomEvent("fireping:update-draft"));
 
           // Reset button
           useLocationBtn.textContent = "📍 Use My Location";
@@ -374,6 +405,50 @@ Hooks.Map = {
       });
     }
 
+    // Also update draft when modal form inputs change
+    const modalLatInputEl = document.getElementById("modal-latitude-input");
+    const modalLngInputEl = document.getElementById("modal-longitude-input");
+    const modalRadiusInputEl = document.getElementById("modal-radius-input");
+    const modalRadiusNumberEl = document.getElementById("modal-radius-number");
+    const onModalChange = () => this.updateDraftCircle();
+    if (modalLatInputEl) {
+      modalLatInputEl.addEventListener("input", onModalChange);
+      modalLatInputEl.addEventListener("change", onModalChange);
+    }
+    if (modalLngInputEl) {
+      modalLngInputEl.addEventListener("input", onModalChange);
+      modalLngInputEl.addEventListener("change", onModalChange);
+    }
+    const syncModalRadius = () => {
+      if (modalRadiusInputEl && modalRadiusNumberEl) {
+        // slider is meters, number is km
+        modalRadiusNumberEl.value = String(
+          Math.round(Number(modalRadiusInputEl.value || 0) / 1000)
+        );
+      }
+      this.updateDraftCircle();
+    };
+    if (modalRadiusInputEl) {
+      modalRadiusInputEl.addEventListener("input", syncModalRadius);
+      modalRadiusInputEl.addEventListener("change", syncModalRadius);
+    }
+    if (modalRadiusNumberEl) {
+      modalRadiusNumberEl.addEventListener("input", () => {
+        if (modalRadiusInputEl)
+          modalRadiusInputEl.value = String(
+            Number(modalRadiusNumberEl.value || 0) * 1000
+          );
+        this.updateDraftCircle();
+      });
+      modalRadiusNumberEl.addEventListener("change", () => {
+        if (modalRadiusInputEl)
+          modalRadiusInputEl.value = String(
+            Number(modalRadiusNumberEl.value || 0) * 1000
+          );
+        this.updateDraftCircle();
+      });
+    }
+
     // Attach listeners for edit form when present
     this.currentEditingId = null;
     this.attachEditListeners = () => {
@@ -423,9 +498,11 @@ Hooks.Map = {
 
     // Allow clicking on the map to populate the add-location form
     this.map.on("click", (e) => {
-      const formLat = document.getElementById("latitude-input");
-      const formLng = document.getElementById("longitude-input");
-      // If editing, use the editing inputs instead
+      // Check for modal form inputs first
+      const modalLat = document.getElementById("modal-latitude-input");
+      const modalLng = document.getElementById("modal-longitude-input");
+
+      // Check for edit form inputs
       const editingId = this.getEditingId();
       const editLat = editingId
         ? document.getElementById(`edit-latitude-input-${editingId}`)
@@ -433,8 +510,15 @@ Hooks.Map = {
       const editLng = editingId
         ? document.getElementById(`edit-longitude-input-${editingId}`)
         : null;
-      const latInput = editLat || formLat;
-      const lngInput = editLng || formLng;
+
+      // Check for original form inputs (fallback)
+      const formLat = document.getElementById("latitude-input");
+      const formLng = document.getElementById("longitude-input");
+
+      // Use the first available input set
+      const latInput = modalLat || editLat || formLat;
+      const lngInput = modalLng || editLng || formLng;
+
       if (!latInput || !lngInput) return;
 
       const { lat, lng } = e.latlng;
@@ -665,22 +749,42 @@ Hooks.Map = {
   },
 
   updateDraftCircle() {
+    // Check for modal form inputs first
+    const modalLat = document.getElementById("modal-latitude-input");
+    const modalLng = document.getElementById("modal-longitude-input");
+    const modalRadius = document.getElementById("modal-radius-input");
+    const modalRadiusNumber = document.getElementById("modal-radius-number");
+
+    // Check for edit form inputs
     const eid = this.getEditingId();
-    const latInput = eid
+    const editLat = eid
       ? document.getElementById(`edit-latitude-input-${eid}`)
-      : document.getElementById("latitude-input");
-    const lngInput = eid
+      : null;
+    const editLng = eid
       ? document.getElementById(`edit-longitude-input-${eid}`)
-      : document.getElementById("longitude-input");
-    const radiusInput = eid
+      : null;
+    const editRadius = eid
       ? document.getElementById(`edit-radius-input-${eid}`)
-      : document.getElementById("radius-input");
-    const radiusNumberEl = eid
+      : null;
+    const editRadiusNumber = eid
       ? document.getElementById(`edit-radius-number-${eid}`)
-      : document.getElementById("radius-number");
-    const radiusValueEl = eid
-      ? document.getElementById(`edit-radius-value-${eid}`)
-      : document.getElementById("radius-value");
+      : null;
+
+    // Check for original form inputs (fallback)
+    const formLat = document.getElementById("latitude-input");
+    const formLng = document.getElementById("longitude-input");
+    const formRadius = document.getElementById("radius-input");
+    const formRadiusNumber = document.getElementById("radius-number");
+    const formRadiusValue = document.getElementById("radius-value");
+
+    // Use the first available input set
+    const latInput = modalLat || editLat || formLat;
+    const lngInput = modalLng || editLng || formLng;
+    const radiusInput = modalRadius || editRadius || formRadius;
+    const radiusNumberEl =
+      modalRadiusNumber || editRadiusNumber || formRadiusNumber;
+    const radiusValueEl = formRadiusValue; // Only exists in original form
+
     if (!latInput || !lngInput || !radiusInput) return;
 
     const lat = Number(latInput.value);
@@ -886,7 +990,6 @@ Hooks.Map = {
   },
 };
 
-
 Hooks.WebPushRegistration = {
   mounted() {
     console.log("WebPushRegistration hook mounted");
@@ -914,7 +1017,7 @@ Hooks.WebPushRegistration = {
       }
 
       // Test if status div is working
-      this.showStatus("Hook mounted - testing status display...", "info");
+      // this.showStatus("Hook mounted - testing status display...", "info");
 
       registerBtn.addEventListener("click", async () =>
         this.handleRegisterClick()
