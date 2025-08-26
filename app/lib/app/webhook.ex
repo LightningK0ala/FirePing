@@ -167,9 +167,26 @@ defmodule App.Webhook do
   """
   def get_webhook_public_key() do
     case App.Config.webhook_public_key() do
-      nil -> nil
-      key -> Base.decode64!(key)
+      nil ->
+        nil
+
+      key ->
+        case Base.decode64(key) do
+          {:ok, decoded_key} ->
+            decoded_key
+
+          :error ->
+            Logger.warning("Invalid webhook public key format (not base64)")
+            nil
+        end
     end
+  end
+
+  @doc """
+  Gets the raw webhook public key (base64-encoded) for display.
+  """
+  def get_webhook_public_key_b64() do
+    App.Config.webhook_public_key()
   end
 
   @doc """
@@ -177,8 +194,18 @@ defmodule App.Webhook do
   """
   def get_webhook_private_key() do
     case App.Config.webhook_private_key() do
-      nil -> nil
-      key -> Base.decode64!(key)
+      nil ->
+        nil
+
+      key ->
+        case Base.decode64(key) do
+          {:ok, decoded_key} ->
+            decoded_key
+
+          :error ->
+            Logger.warning("Invalid webhook private key format (not base64)")
+            nil
+        end
     end
   end
 end

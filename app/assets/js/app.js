@@ -886,6 +886,7 @@ Hooks.Map = {
   },
 };
 
+
 Hooks.WebPushRegistration = {
   mounted() {
     console.log("WebPushRegistration hook mounted");

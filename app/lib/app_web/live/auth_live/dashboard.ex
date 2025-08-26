@@ -263,9 +263,33 @@ defmodule AppWeb.AuthLive.Dashboard do
         {:noreply, put_flash(socket, :error, "Device not found")}
 
       device ->
-        case Notifications.create_test_notification(socket.assigns.current_user.id) do
+        # Create a test notification with device context
+        test_notification_attrs = %{
+          user_id: socket.assigns.current_user.id,
+          title: "Test Notification",
+          body: "This is a test notification to verify your device is working correctly.",
+          type: "test",
+          data: %{
+            "test" => true,
+            "device_name" => device.name,
+            "device_channel" => device.channel,
+            "webhook" => device.channel == "webhook"
+          }
+        }
+        
+        case Notifications.create_notification(test_notification_attrs) do
           {:ok, notification} ->
-            case App.WebPush.send_notification(notification, device) do
+            # Route to the appropriate notification sender based on device channel
+            result = case device.channel do
+              "web_push" ->
+                App.WebPush.send_notification(notification, device)
+              "webhook" ->
+                App.Webhook.send_notification(notification, device)
+              _ ->
+                {:error, "Unsupported notification channel: #{device.channel}"}
+            end
+
+            case result do
               :ok ->
                 # Update the device's last_used_at timestamp
                 NotificationDevice.update_last_used(device)
@@ -1157,6 +1181,16 @@ defmodule AppWeb.AuthLive.Dashboard do
             </div>
           </div>
         </div>
+      </div>
+      
+    <!-- Notification History -->
+      <div class="grid grid-cols-1 gap-6">
+        <.live_component
+          module={AppWeb.Components.NotificationHistory}
+          id="notification-history"
+          current_user={@current_user}
+          limit={10}
+        />
       </div>
     </div>
     """

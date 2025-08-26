@@ -158,5 +158,137 @@ defmodule App.WebhookTest do
       # Should be base64-encoded raw key
       assert byte_size(Base.decode64!(private_key)) > 0
     end
+
+    test "get_webhook_public_key/0 returns nil when not configured" do
+      # Temporarily unset the public key
+      original_key = Application.get_env(:app, :webhook_public_key)
+      Application.put_env(:app, :webhook_public_key, nil)
+
+      assert Webhook.get_webhook_public_key() == nil
+
+      # Restore the original key
+      Application.put_env(:app, :webhook_public_key, original_key)
+    end
+
+    test "get_webhook_private_key/0 returns nil when not configured" do
+      # Temporarily unset the private key
+      original_key = Application.get_env(:app, :webhook_private_key)
+      Application.put_env(:app, :webhook_private_key, nil)
+
+      assert Webhook.get_webhook_private_key() == nil
+
+      # Restore the original key
+      Application.put_env(:app, :webhook_private_key, original_key)
+    end
+  end
+
+  describe "webhook payload building" do
+    test "build_payload/1 creates proper payload structure" do
+      notification = %Notification{
+        id: "test-id",
+        title: "Test Title",
+        body: "Test Body",
+        type: "fire_alert",
+        data: %{"location" => "San Francisco"}
+      }
+
+      payload = Webhook.build_payload(notification)
+
+      assert payload["notification_id"] == "test-id"
+      assert payload["title"] == "Test Title"
+      assert payload["body"] == "Test Body"
+      assert payload["type"] == "fire_alert"
+      assert payload["data"] == %{"location" => "San Francisco"}
+      assert payload["sent_at"] != nil
+      assert is_binary(payload["sent_at"])
+    end
+
+    test "build_payload/1 handles nil data" do
+      notification = %Notification{
+        id: "test-id",
+        title: "Test Title",
+        body: "Test Body",
+        type: "test",
+        data: nil
+      }
+
+      payload = Webhook.build_payload(notification)
+      assert payload["data"] == %{}
+    end
+  end
+
+  describe "signature generation with missing keys" do
+    test "generate_signature/2 uses fallback when private key missing" do
+      # Temporarily unset the private key
+      original_key = Application.get_env(:app, :webhook_private_key)
+      Application.put_env(:app, :webhook_private_key, nil)
+
+      payload = %{"test" => "data"}
+      timestamp = "1234567890"
+
+      signature = Webhook.generate_signature(payload, timestamp)
+
+      # Should still return a signature (SHA256 fallback)
+      assert is_binary(signature)
+      assert byte_size(signature) > 0
+
+      # Restore the original key
+      Application.put_env(:app, :webhook_private_key, original_key)
+    end
+
+    test "verify_signature/3 returns error when public key missing" do
+      # Temporarily unset the public key
+      original_key = Application.get_env(:app, :webhook_public_key)
+      Application.put_env(:app, :webhook_public_key, nil)
+
+      payload = %{"test" => "data"}
+      timestamp = DateTime.utc_now() |> DateTime.to_unix() |> to_string()
+      signature = "some_signature"
+
+      assert Webhook.verify_signature(payload, timestamp, signature) == :error
+
+      # Restore the original key
+      Application.put_env(:app, :webhook_public_key, original_key)
+    end
+  end
+
+  describe "timestamp verification" do
+    test "verify_timestamp/1 accepts recent timestamp" do
+      recent_timestamp = DateTime.utc_now() |> DateTime.to_unix() |> to_string()
+      assert Webhook.verify_timestamp(recent_timestamp) == :ok
+    end
+
+    test "verify_timestamp/1 rejects old timestamp" do
+      # 2 hours ago
+      old_timestamp = ((DateTime.utc_now() |> DateTime.to_unix()) - 7200) |> to_string()
+      assert Webhook.verify_timestamp(old_timestamp) == :error
+    end
+
+    test "verify_timestamp/1 rejects future timestamp" do
+      # 2 hours in the future
+      future_timestamp = ((DateTime.utc_now() |> DateTime.to_unix()) + 7200) |> to_string()
+      assert Webhook.verify_timestamp(future_timestamp) == :error
+    end
+
+    test "verify_timestamp/1 rejects invalid timestamp format" do
+      assert Webhook.verify_timestamp("not_a_number") == :error
+      assert Webhook.verify_timestamp("123.456") == :error
+      assert Webhook.verify_timestamp("") == :error
+    end
+  end
+
+  describe "error handling" do
+    test "get_webhook_public_key_b64/0 returns base64 key for display" do
+      expected_key = "HY9a5C20R0I/ErKfoP1cwYUnBoFrk0InBWEDfIXphmI="
+      assert Webhook.get_webhook_public_key_b64() == expected_key
+    end
+
+    test "verify_signature/3 handles invalid base64 signature" do
+      payload = %{"test" => "data"}
+      timestamp = DateTime.utc_now() |> DateTime.to_unix() |> to_string()
+      invalid_base64_signature = "invalid-base64!@#"
+
+      assert Webhook.verify_signature(payload, timestamp, invalid_base64_signature) == :error
+    end
   end
 end
