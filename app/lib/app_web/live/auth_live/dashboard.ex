@@ -131,6 +131,19 @@ defmodule AppWeb.AuthLive.Dashboard do
      })}
   end
 
+  def handle_event("map_pick_coords", %{"latitude" => lat, "longitude" => lng}, socket) do
+    # Re-open the locations modal with prefilled coordinates
+    send_update(AppWeb.Components.LocationsWidget,
+      id: "locations-widget",
+      current_user: socket.assigns.current_user,
+      action: :prefill_coords,
+      latitude: lat,
+      longitude: lng
+    )
+
+    {:noreply, socket}
+  end
+
   def handle_info({:send_test_notification, device_id}, socket) do
     try do
       case Notifications.get_user_notification_device(socket.assigns.current_user.id, device_id) do

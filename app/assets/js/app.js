@@ -313,6 +313,42 @@ Hooks.Map = {
       this.updateMapData(locations, processedFires);
     });
 
+    // One-time coordinate picking flow from LiveView
+    this.pickOnMapActive = false;
+    this.handleEvent("start_pick_on_map", () => {
+      try {
+        this.pickOnMapActive = true;
+        const container = this.map.getContainer();
+        if (container) container.style.cursor = "crosshair";
+
+        const onPick = (e) => {
+          const { lat, lng } = e.latlng || {};
+          this.pickOnMapActive = false;
+          if (container) container.style.cursor = "";
+
+          if (typeof lat === "number" && typeof lng === "number") {
+            // Show marker feedback
+            try {
+              if (this.selectionMarker) {
+                this.map.removeLayer(this.selectionMarker);
+              }
+              this.selectionMarker = L.marker([lat, lng], {
+                icon: this.getEditingIcon(),
+              }).addTo(this.map);
+            } catch (_err) {}
+
+            // Send coordinates to LiveView
+            this.pushEvent("map_pick_coords", {
+              latitude: Number(lat).toFixed(6),
+              longitude: Number(lng).toFixed(6),
+            });
+          }
+        };
+
+        this.map.once("click", onPick);
+      } catch (_err) {}
+    });
+
     // Handle map centering from LiveView (for incident and location clicks)
     this.handleEvent("center_map", (data) => {
       const {

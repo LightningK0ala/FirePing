@@ -3,11 +3,22 @@ defmodule AppWeb.Components.LocationsWidget do
   alias App.Location
 
   def handle_event("show_add_modal", _params, socket) do
-    {:noreply, assign(socket, :show_add_modal, true)}
+    {:noreply,
+     socket
+     |> assign(:show_add_modal, true)
+     |> assign_new(:draft_latitude, fn -> nil end)
+     |> assign_new(:draft_longitude, fn -> nil end)}
   end
 
   def handle_event("hide_add_modal", _params, socket) do
     {:noreply, assign(socket, :show_add_modal, false)}
+  end
+
+  def handle_event("start_pick_on_map", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:show_add_modal, false)
+     |> push_event("start_pick_on_map", %{})}
   end
 
   def handle_event("create_location", params, socket) do
@@ -152,6 +163,14 @@ defmodule AppWeb.Components.LocationsWidget do
     {:ok, assign(socket, :show_add_modal, true)}
   end
 
+  def update(%{action: :prefill_coords, latitude: lat, longitude: lng}, socket) do
+    {:ok,
+     socket
+     |> assign(:draft_latitude, lat)
+     |> assign(:draft_longitude, lng)
+     |> assign(:show_add_modal, true)}
+  end
+
   def update(%{action: :location_created}, socket) do
     locations = Location.list_for_user(socket.assigns.current_user.id)
 
@@ -170,6 +189,8 @@ defmodule AppWeb.Components.LocationsWidget do
      |> assign(assigns)
      |> assign(:locations, locations)
      |> assign(:show_add_modal, false)
+     |> assign_new(:draft_latitude, fn -> nil end)
+     |> assign_new(:draft_longitude, fn -> nil end)
      |> assign(:editing_location_id, nil)}
   end
 
@@ -426,6 +447,7 @@ defmodule AppWeb.Components.LocationsWidget do
                   step="0.000001"
                   placeholder="37.7749"
                   class="w-full px-3 py-2.5 border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 rounded-md focus:border-blue-400 focus:ring-1 focus:ring-blue-400 text-sm"
+                  value={@draft_latitude}
                   required
                 />
               </div>
@@ -440,6 +462,7 @@ defmodule AppWeb.Components.LocationsWidget do
                   step="0.000001"
                   placeholder="-122.4194"
                   class="w-full px-3 py-2.5 border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 rounded-md focus:border-blue-400 focus:ring-1 focus:ring-blue-400 text-sm"
+                  value={@draft_longitude}
                   required
                 />
               </div>
@@ -453,6 +476,14 @@ defmodule AppWeb.Components.LocationsWidget do
                 class="inline-flex items-center rounded-md bg-zinc-700 px-3 py-2 text-white text-sm font-medium shadow hover:bg-zinc-800 transition-colors"
               >
                 📍 Use My Location
+              </button>
+              <button
+                type="button"
+                phx-click="start_pick_on_map"
+                phx-target={@myself}
+                class="inline-flex items-center rounded-md bg-blue-600 px-3 py-2 text-white text-sm font-medium shadow hover:bg-blue-700 transition-colors ml-2"
+              >
+                🗺️ Pick on map
               </button>
               <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
                 You can also click on the map to set the coordinates.
