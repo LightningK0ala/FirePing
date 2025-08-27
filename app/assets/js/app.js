@@ -315,7 +315,7 @@ Hooks.Map = {
 
     // One-time coordinate picking flow from LiveView
     this.pickOnMapActive = false;
-    this.handleEvent("start_pick_on_map", () => {
+    this.handleEvent("start_pick_on_map", (payload = {}) => {
       try {
         this.pickOnMapActive = true;
         const container = this.map.getContainer();
@@ -338,10 +338,20 @@ Hooks.Map = {
             } catch (_err) {}
 
             // Send coordinates to LiveView
-            this.pushEvent("map_pick_coords", {
-              latitude: Number(lat).toFixed(6),
-              longitude: Number(lng).toFixed(6),
-            });
+            const context = payload && payload.context;
+            const locationId = payload && payload.location_id;
+            if (context === "edit" && locationId) {
+              this.pushEvent("map_pick_edit_coords", {
+                latitude: Number(lat).toFixed(6),
+                longitude: Number(lng).toFixed(6),
+                location_id: locationId,
+              });
+            } else {
+              this.pushEvent("map_pick_coords", {
+                latitude: Number(lat).toFixed(6),
+                longitude: Number(lng).toFixed(6),
+              });
+            }
           }
         };
 

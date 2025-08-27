@@ -144,6 +144,24 @@ defmodule AppWeb.AuthLive.Dashboard do
     {:noreply, socket}
   end
 
+  def handle_event(
+        "map_pick_edit_coords",
+        %{"latitude" => lat, "longitude" => lng, "location_id" => id},
+        socket
+      ) do
+    # Re-open the edit modal with updated coordinates
+    send_update(AppWeb.Components.LocationsWidget,
+      id: "locations-widget",
+      current_user: socket.assigns.current_user,
+      action: :prefill_edit_coords,
+      latitude: lat,
+      longitude: lng,
+      location_id: id
+    )
+
+    {:noreply, socket}
+  end
+
   def handle_info({:send_test_notification, device_id}, socket) do
     try do
       case Notifications.get_user_notification_device(socket.assigns.current_user.id, device_id) do
