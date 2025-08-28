@@ -12,9 +12,12 @@ defmodule AppWeb.Telemetry do
       # Telemetry poller will execute the given period measurements
       # every 10_000ms. Learn more here: https://hexdocs.pm/telemetry_metrics
       {:telemetry_poller,
-       measurements: periodic_measurements(), period: 10_000, init_delay: 5_000}
-      # Add reporters as children of your supervision tree.
-      # {Telemetry.Metrics.ConsoleReporter, metrics: metrics()}
+       measurements: periodic_measurements(), period: 10_000, init_delay: 5_000},
+      # Prometheus metrics reporter (only in dev/prod, not for mix tasks)
+      case should_start_prometheus_server?() do
+        true -> {TelemetryMetricsPrometheus, [metrics: metrics(), port: 9568]}
+        false -> {TelemetryMetricsPrometheus.Core, [metrics: metrics()]}
+      end
     ]
 
     Supervisor.init(children, strategy: :one_for_one)
@@ -23,14 +26,14 @@ defmodule AppWeb.Telemetry do
   def metrics do
     [
       # Keep only essential Phoenix metrics for response times
-      summary("phoenix.router_dispatch.stop.duration",
+      last_value("phoenix.router_dispatch.stop.duration",
         tags: [:route],
         unit: {:native, :millisecond},
         description: "HTTP request response times"
       ),
 
       # Keep essential VM memory metric
-      summary("vm.memory.total", unit: {:byte, :kilobyte}),
+      last_value("vm.memory.total", unit: {:byte, :kilobyte}),
 
       # Database Size Metrics
       last_value("app.database.size.gigabytes",
@@ -74,6 +77,22 @@ defmodule AppWeb.Telemetry do
       ),
       last_value("app.locations.total_count",
         description: "Total monitored locations"
+      ),
+
+      # NASA API Health Metrics
+      last_value("app.nasa_api.last_success_timestamp",
+        description: "Last successful NASA API fetch timestamp"
+      ),
+      counter("app.nasa_api.requests_total",
+        description: "Total NASA API requests",
+        tags: [:status]
+      ),
+      last_value("app.nasa_api.response_time",
+        description: "NASA API response times",
+        unit: :millisecond
+      ),
+      last_value("app.nasa_api.last_fire_count",
+        description: "Number of fires fetched in last API call"
       )
     ]
   end
@@ -204,5 +223,13 @@ defmodule AppWeb.Telemetry do
           :ok
       end
     end
+  end
+
+  # Only start Prometheus HTTP server when running as a server (not for mix tasks)
+  defp should_start_prometheus_server? do
+    # Check if we're running as Phoenix server
+    # Check if we're in a release
+    Application.get_env(:phoenix, :serve_endpoints, false) or
+      Application.get_env(:app, :start_prometheus_server, false)
   end
 end

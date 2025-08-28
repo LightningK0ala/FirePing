@@ -43,6 +43,14 @@ defmodule App.Workers.FireFetch do
         end_time = System.monotonic_time(:millisecond)
         duration_ms = end_time - start_time
 
+        # Emit telemetry for successful fetch
+        :telemetry.execute([:app, :nasa_api], %{
+          last_success_timestamp: System.system_time(:second),
+          last_fire_count: total_fires
+        })
+
+        :telemetry.execute([:app, :nasa_api, :requests], %{total: 1}, %{status: "success"})
+
         # Add rich metadata for Oban dashboard
         metadata = %{
           total_fires_inserted: total_fires,
@@ -84,6 +92,9 @@ defmodule App.Workers.FireFetch do
       {:error, reason} ->
         end_time = System.monotonic_time(:millisecond)
         duration_ms = end_time - start_time
+
+        # Emit telemetry for failed fetch
+        :telemetry.execute([:app, :nasa_api, :requests], %{total: 1}, %{status: "error"})
 
         # Add error metadata
         error_metadata = %{
@@ -184,11 +195,20 @@ defmodule App.Workers.FireFetch do
       {"Accept", "text/csv"}
     ]
 
+    start_time = System.monotonic_time(:millisecond)
+
     case HTTPoison.get(url, headers, timeout: @timeout, recv_timeout: @timeout) do
       {:ok, %{status_code: 200, body: csv_body}} ->
+        end_time = System.monotonic_time(:millisecond)
+        response_time = end_time - start_time
+
+        # Emit response time telemetry
+        :telemetry.execute([:app, :nasa_api, :response_time], %{duration: response_time})
+
         Logger.info("FireFetch: Got response from #{satellite}",
           bytes: byte_size(csv_body),
-          lines: length(String.split(csv_body, "\n", trim: true))
+          lines: length(String.split(csv_body, "\n", trim: true)),
+          response_time_ms: response_time
         )
 
         process_csv_data(csv_body, satellite)
