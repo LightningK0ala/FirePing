@@ -67,7 +67,8 @@ defmodule App.MixProject do
       {:msgpax, "~> 2.4"},
       {:lazy_html, ">= 0.1.0", only: :test},
       {:web_push_elixir, "~> 0.4.0"},
-      {:ed25519, "~> 1.4"}
+      {:ed25519, "~> 1.4"},
+      {:resend, "~> 0.4.0"}
     ]
   end
 

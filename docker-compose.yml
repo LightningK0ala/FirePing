@@ -8,10 +8,15 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d app_${MIX_ENV:-dev}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-postgres} -d app_${MIX_ENV:-dev}",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: ${RESTART_POLICY:-always}
 
   app:
     build:
