@@ -24,6 +24,7 @@ services:
       target: ${DOCKER_TARGET:-dev}
     ports:
       - "${PHOENIX_PORT:-4000}:4000"
+      - "9568:9568"
     env_file:
       - .env
     environment:
@@ -41,5 +42,38 @@ services:
     command: ["sh", "-c", "mix setup && mix phx.server"]
     restart: ${RESTART_POLICY:-always}
 
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/alert-rules.yml:/etc/prometheus/alert-rules.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    restart: ${RESTART_POLICY:-always}
+
+  grafana:
+    image: grafana/grafana:10.1.2
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/etc/dashboards
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    restart: ${RESTART_POLICY:-always}
+
 volumes:
   postgres_data:
+  prometheus_data:
+  grafana_data:

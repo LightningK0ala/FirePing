@@ -1,0 +1,82 @@
+groups:
+  - name: fireping-alerts
+    rules:
+      - alert: NASAAPIDown
+        expr: (time() - app_nasa_api_last_success_timestamp) > 3600
+        for: 5m
+        labels:
+          severity: critical
+          service: nasa-api
+        annotations:
+          summary: "NASA FIRMS API has not succeeded in over 1 hour"
+          description: "The NASA FIRMS API has not had a successful response for {{ $value | humanizeDuration }}. Fire detection may be impacted."
+
+      - alert: NASAAPIHighErrorRate
+        expr: (rate(app_nasa_api_requests_total{status="error"}[10m]) / rate(app_nasa_api_requests_total[10m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          service: nasa-api
+        annotations:
+          summary: "NASA FIRMS API error rate is high"
+          description: "NASA FIRMS API error rate is {{ $value | humanizePercentage }} over the last 10 minutes"
+
+      - alert: NoFireDataFetched
+        expr: app_nasa_api_last_fire_count == 0 and (time() - app_nasa_api_last_success_timestamp) < 1800
+        for: 15m
+        labels:
+          severity: warning
+          service: fire-detection
+        annotations:
+          summary: "No fires detected in recent successful API calls"
+          description: "Recent NASA API calls are succeeding but returning 0 fires for 15+ minutes. This could indicate an issue with fire detection."
+
+      - alert: DatabaseSizeGrowthHigh
+        expr: increase(app_database_size_gigabytes[1h]) > 0.5
+        for: 0m
+        labels:
+          severity: warning
+          service: database
+        annotations:
+          summary: "Database growing rapidly"
+          description: "Database size increased by {{ $value | humanize }}GB in the last hour"
+
+      - alert: PhoenixHighResponseTime
+        expr: phoenix_router_dispatch_stop_duration > 5000
+        for: 2m
+        labels:
+          severity: warning
+          service: phoenix
+        annotations:
+          summary: "Phoenix response times are high"
+          description: "Phoenix {{ $labels.route }} response time is {{ $value | humanizeDuration }} which exceeds 5 seconds"
+
+      - alert: VMMemoryHigh
+        expr: vm_memory_total > 500000
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "VM memory usage is high"
+          description: "VM memory usage is {{ $value | humanize }}KB (> 500MB)"
+
+      - alert: ActiveIncidentsStuck
+        expr: app_incidents_active_count > 0 and changes(app_incidents_active_count[2h]) == 0
+        for: 2h
+        labels:
+          severity: warning
+          service: fire-clustering
+        annotations:
+          summary: "Active fire incidents not changing"
+          description: "There are {{ $value }} active fire incidents that haven't changed in 2+ hours. Fire clustering or cleanup may be stuck."
+
+      - alert: NoRecentFireDetection
+        expr: app_fires_recent_24h_count == 0
+        for: 4h
+        labels:
+          severity: warning
+          service: fire-detection
+        annotations:
+          summary: "No fires detected in last 24 hours"
+          description: "No new fires have been detected in the last 24 hours for 4+ hours. This is unusual and may indicate a system issue."
