@@ -1,6 +1,6 @@
 defmodule AppWeb.AuthLive.Login do
   use AppWeb, :live_view
-  alias App.User
+  alias App.{User, Email}
 
   def mount(_params, _session, socket) do
     {:ok, assign(socket, :form, to_form(%{"email" => ""}))}
@@ -19,15 +19,38 @@ defmodule AppWeb.AuthLive.Login do
 
         case App.Repo.update(changeset) do
           {:ok, updated_user} ->
-            # In a real app, you'd send the OTP via email here
-            # For now, we'll just show it in the flash
-            {:noreply,
-             socket
-             |> put_flash(:info, "OTP sent! Code: #{updated_user.otp_token}")
-             |> push_navigate(to: ~p"/verify/#{email}")}
+            # Send OTP via email
+            case Email.send_otp_email(email, updated_user.otp_token) do
+              {:ok, _response} ->
+                # Log OTP for development when emails are disabled
+                unless Email.emails_enabled?() do
+                  require Logger
+
+                  app_host =
+                    Application.get_env(:app, :app_host) || System.get_env("APP_HOST") ||
+                      "http://localhost:4000"
+
+                  magic_link = "#{app_host}/verify/#{email}?otp=#{updated_user.otp_token}"
+                  Logger.info("🔐 OTP for #{email}: #{updated_user.otp_token}")
+                  Logger.info("🔗 Magic link: #{magic_link}")
+                end
+
+                {:noreply,
+                 socket
+                 |> put_flash(:info, "Login code sent! Check your email for the 6-digit code.")
+                 |> push_navigate(to: ~p"/verify/#{email}")}
+
+              {:error, reason} ->
+                require Logger
+                Logger.error("Failed to send OTP email", email: email, reason: reason)
+
+                {:noreply,
+                 put_flash(socket, :error, "Failed to send login code. Please try again.")}
+            end
 
           {:error, _changeset} ->
-            {:noreply, put_flash(socket, :error, "Failed to generate OTP")}
+            {:noreply,
+             put_flash(socket, :error, "Failed to generate login code. Please try again.")}
         end
 
       {:error, changeset} ->

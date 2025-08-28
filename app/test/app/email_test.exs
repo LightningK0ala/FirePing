@@ -85,4 +85,24 @@ defmodule App.EmailTest do
       assert String.starts_with?(response.id, "test-email-id-")
     end
   end
+
+  describe "send_otp_email/2" do
+    test "sends OTP email with proper formatting" do
+      user_email = "user@example.com"
+      otp_code = "123456"
+
+      # In test environment, should return mock response
+      assert {:ok, response} = Email.send_otp_email(user_email, otp_code)
+      assert String.starts_with?(response.id, "test-email-id-")
+    end
+
+    test "sends OTP email with force option" do
+      user_email = "user@example.com"
+      otp_code = "123456"
+
+      # Even with force=true, test environment should return mock response
+      assert {:ok, response} = Email.send_otp_email(user_email, otp_code, true)
+      assert String.starts_with?(response.id, "test-email-id-")
+    end
+  end
 end

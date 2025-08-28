@@ -44,7 +44,8 @@ config :app,
   resend_api_key: System.get_env("RESEND_API_KEY"),
   fire_alert_from_email: System.get_env("FIRE_ALERT_FROM_EMAIL") || "noreply@fireping.net",
   general_from_email: System.get_env("GENERAL_FROM_EMAIL") || "support@fireping.net",
-  send_emails: send_emails
+  send_emails: send_emails,
+  app_host: System.get_env("APP_HOST") || "http://localhost:4000"
 
 # Configure web_push_elixir
 config :web_push_elixir,

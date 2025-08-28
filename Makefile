@@ -159,5 +159,14 @@ test-email: ## Test email sending functionality (usage: make test-email email=us
 		docker compose exec app sh -c 'mix test_email'; \
 	fi
 
+test-otp-email: ## Test OTP email sending functionality - bypasses SEND_EMAILS setting (usage: make test-otp-email email=user@example.com otp=123456)
+	@if [ -n "$(email)" ] && [ -n "$(otp)" ]; then \
+		docker compose exec app sh -c 'mix test_otp_email $(email) $(otp)'; \
+	elif [ -n "$(email)" ]; then \
+		docker compose exec app sh -c 'mix test_otp_email $(email)'; \
+	else \
+		docker compose exec app sh -c 'mix test_otp_email'; \
+	fi
+
 %:
 	@:
