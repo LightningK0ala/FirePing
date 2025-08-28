@@ -9,15 +9,18 @@ defmodule AppWeb.AuthLive.Verify do
       assign(socket,
         email: email,
         form: to_form(%{"otp_token" => otp_token}),
-        submitting: true
+        submitting: false
       )
 
     # If OTP token is provided via magic link, automatically submit it after a brief delay
-    if otp_token != "" do
-      Process.send_after(self(), {:auto_submit_otp, otp_token}, 1500)
-    end
+    case otp_token do
+      "" ->
+        {:ok, socket}
 
-    {:ok, socket}
+      otp_token ->
+        Process.send_after(self(), {:auto_submit_otp, otp_token}, 1500)
+        {:ok, assign(socket, submitting: true)}
+    end
   end
 
   def handle_info({:auto_submit_otp, otp_token}, socket) do
