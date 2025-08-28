@@ -31,6 +31,21 @@ config :app,
   webhook_private_key: System.get_env("WEBHOOK_PRIVATE_KEY"),
   webhook_public_key: System.get_env("WEBHOOK_PUBLIC_KEY")
 
+# Configure Resend for email delivery
+send_emails =
+  case System.get_env("SEND_EMAILS", "true") |> String.downcase() do
+    "false" -> false
+    "0" -> false
+    "no" -> false
+    _ -> true
+  end
+
+config :app,
+  resend_api_key: System.get_env("RESEND_API_KEY"),
+  fire_alert_from_email: System.get_env("FIRE_ALERT_FROM_EMAIL") || "noreply@fireping.net",
+  general_from_email: System.get_env("GENERAL_FROM_EMAIL") || "support@fireping.net",
+  send_emails: send_emails
+
 # Configure web_push_elixir
 config :web_push_elixir,
   vapid_public_key: System.get_env("VAPID_PUBLIC_KEY"),

@@ -37,3 +37,7 @@ config :logger, level: :warning
 
 # Initialize plugs at runtime for faster test compilation
 config :phoenix, :plug_init_mode, :runtime
+
+# Disable real email sending in tests
+config :app,
+  send_emails: false

@@ -2,13 +2,16 @@
 -include .env
 export
 
-.PHONY: help setup dev spec-dev test test-watch clean db-up db-ready db-down db-reset format check import-fires admin-grant admin-revoke admin-list fire-fetch fire-debug fire-count fire-test up down build logs
+.PHONY: help setup dev spec-dev test test-watch clean db-up db-ready db-down db-reset format check import-fires admin-grant admin-revoke admin-list fire-fetch fire-debug fire-count fire-test up down build logs compile
 
-compile: ## Compile the project
-	docker compose exec app sh -c 'mix compile'
+# Default target - show help when running 'make' without arguments
+.DEFAULT_GOAL := help
 
 help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' Makefile | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
+compile: ## Compile the project
+	docker compose exec app sh -c 'mix compile'
 
 setup: ## Initial project setup (deps, create DB, migrate, hooks)
 	make up
@@ -148,6 +151,13 @@ generate-vapid: ## Generate new VAPID keys for web push notifications using web_
 
 generate-webhook-keys: ## Generate new Ed25519 webhook keypairs for signature generation and verification
 	docker compose exec app sh -c 'mix generate.webhook_keys'
+
+test-email: ## Test email sending functionality (usage: make test-email email=user@example.com)
+	@if [ -n "$(email)" ]; then \
+		docker compose exec app sh -c 'mix test_email $(email)'; \
+	else \
+		docker compose exec app sh -c 'mix test_email'; \
+	fi
 
 %:
 	@:
