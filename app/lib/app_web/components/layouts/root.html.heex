@@ -5,10 +5,90 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
     <meta name="theme-color" content="#dc2626" />
-    <link rel="manifest" href="/manifest.json" />
-    <.live_title suffix=" · Phoenix Framework">
-      {assigns[:page_title] || "App"}
+    
+    <!-- Primary Meta Tags -->
+    <.live_title suffix=" · FirePing">
+      {assigns[:page_title] || "FirePing - Real-time Fire Alerts from NASA Satellites"}
     </.live_title>
+    <meta name="title" content="FirePing - Real-time Fire Alerts from NASA Satellites | Never Miss a Fire Near Your Home" />
+    <meta name="description" content="Get instant alerts when NASA satellites detect fires within your chosen radius. Monitor any location worldwide with real-time fire detection. Protect what matters to you." />
+    <meta name="keywords" content="fire alerts, fire detection, NASA FIRMS, satellite fire monitoring, wildfire alerts, fire safety, emergency notifications, fire monitoring service" />
+    <meta name="author" content="FirePing" />
+    <meta name="robots" content="index, follow" />
+    <meta name="language" content="English" />
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://fireping.com/" />
+    <meta property="og:title" content="FirePing - Real-time Fire Alerts from NASA Satellites" />
+    <meta property="og:description" content="Get instant alerts when NASA satellites detect fires within your chosen radius. Monitor any location worldwide with real-time fire detection." />
+    <meta property="og:image" content="https://fireping.com/og-image.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:site_name" content="FirePing" />
+    <meta property="og:locale" content="en_US" />
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://fireping.com/" />
+    <meta property="twitter:title" content="FirePing - Real-time Fire Alerts from NASA Satellites" />
+    <meta property="twitter:description" content="Get instant alerts when NASA satellites detect fires within your chosen radius. Monitor any location worldwide with real-time fire detection." />
+    <meta property="twitter:image" content="https://fireping.com/twitter-image.jpg" />
+    <meta property="twitter:creator" content="@fireping" />
+    <meta property="twitter:site" content="@fireping" />
+    
+    <!-- Additional SEO Meta Tags -->
+    <meta name="application-name" content="FirePing" />
+    <meta name="apple-mobile-web-app-title" content="FirePing" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://fireping.com/" />
+    
+    <!-- Favicon and App Icons -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    
+    <!-- Preconnect to external domains -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    
+    <!-- Structured Data / JSON-LD -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "FirePing",
+        "description": "Real-time fire alerts from NASA satellites. Monitor any location worldwide and get instant notifications when fires are detected.",
+        "url": "https://fireping.com",
+        "applicationCategory": "SafetyApplication",
+        "operatingSystem": "Web",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD",
+          "description": "Free fire monitoring service"
+        },
+        "provider": {
+          "@type": "Organization",
+          "name": "FirePing",
+          "url": "https://fireping.com"
+        },
+        "featureList": [
+          "Real-time satellite fire detection",
+          "Global location monitoring",
+          "Instant email and push notifications",
+          "Custom radius settings",
+          "NASA FIRMS integration"
+        ]
+      }
+    </script>
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link
