@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en" class="[scrollbar-gutter:stable]">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <meta name="theme-color" content="#dc2626" />
+    
+<!-- Primary Meta Tags -->
+    <title>Privacy Policy - FirePing | Your Data Protection & Privacy Rights</title>
+    <meta
+      name="title"
+      content="Privacy Policy - FirePing | Your Data Protection & Privacy Rights"
+    />
+    <meta
+      name="description"
+      content="Learn how FirePing protects your privacy and handles your location data. We don't collect personal data nor share any location coordinates with third parties."
+    />
+    <meta
+      name="keywords"
+      content="privacy policy, data protection, privacy rights, location data, GDPR, CCPA, data security"
+    />
+    
+<!-- Stylesheets -->
+    <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
+  </head>
+  <body class="bg-zinc-50 dark:bg-zinc-900 dark:text-zinc-100 antialiased min-h-screen">
+    <div class="relative min-h-screen overflow-hidden">
+      <!-- Animated background -->
+      <div class="absolute inset-0 -z-10">
+        <div class="absolute inset-0 bg-gradient-to-br from-orange-50 via-red-50 to-amber-50 dark:from-zinc-950 dark:via-black dark:to-zinc-900">
+        </div>
+        <div class="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-r from-orange-400/20 to-red-500/20 rounded-full blur-3xl animate-pulse">
+        </div>
+        <div class="absolute bottom-0 right-1/4 w-96 h-96 bg-gradient-to-r from-red-400/20 to-orange-500/20 rounded-full blur-3xl animate-pulse delay-1000">
+        </div>
+        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-gradient-to-r from-amber-400/10 to-orange-500/10 rounded-full blur-2xl animate-pulse delay-500">
+        </div>
+      </div>
+      
+<!-- Navigation -->
+      <nav class="relative z-10 px-4 sm:px-6 lg:px-8 py-6">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+          <a href="/" class="flex items-center gap-3">
+            <div class="relative">
+              <span class="text-3xl">🔥</span>
+              <div class="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></div>
+            </div>
+            <div>
+              <span class="text-2xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+                FirePing
+              </span>
+              <div class="text-xs text-zinc-500 dark:text-zinc-400 -mt-1">Live Fire Alerts</div>
+            </div>
+          </a>
+          <div class="flex items-center gap-4">
+            <a
+              href="/"
+              class="text-zinc-700 dark:text-zinc-300 hover:text-orange-600 dark:hover:text-orange-400 transition-colors"
+            >
+              ← Back to Home
+            </a>
+          </div>
+        </div>
+      </nav>
+      
+<!-- Privacy Content -->
+      <section class="relative px-4 sm:px-6 lg:px-8 py-20">
+        <div class="max-w-4xl mx-auto">
+          <div class="text-center mb-12">
+            <h1 class="text-4xl sm:text-5xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">
+              Privacy Policy
+            </h1>
+            <p class="text-xl text-zinc-600 dark:text-zinc-300">
+              Your privacy is our top priority. Here's how we protect your data.
+            </p>
+            <p class="text-sm text-zinc-500 dark:text-zinc-400 mt-4">
+              Last updated: {Date.utc_today() |> Calendar.strftime("%B %d, %Y")}
+            </p>
+          </div>
+
+          <div class="prose prose-lg dark:prose-invert max-w-none">
+            <div class="bg-white/60 dark:bg-zinc-900/60 backdrop-blur-sm rounded-2xl p-8 shadow-xl border border-zinc-200/50 dark:border-zinc-700/50 mb-8">
+              <h2 class="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">
+                🔒 Our Privacy Commitment
+              </h2>
+              <p class="text-zinc-700 dark:text-zinc-300 mb-4">
+                At FirePing, we believe in transparency and minimal data collection. Our privacy-first approach means we collect only what's absolutely necessary to provide our fire alert service.
+              </p>
+              <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-4 mb-6">
+                <div class="flex items-center gap-2 mb-2">
+                  <svg
+                    class="w-5 h-5 text-green-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                    >
+                    </path>
+                  </svg>
+                  <span class="font-semibold text-green-800 dark:text-green-200">
+                    Privacy Promise
+                  </span>
+                </div>
+                <p class="text-green-700 dark:text-green-300 text-sm">
+                  <strong>
+                    We don't collect any personal data nor share any location coordinates with any third party providers.
+                  </strong>
+                  Your privacy is completely protected.
+                </p>
+              </div>
+
+              <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4 mb-6">
+                <div class="flex items-center gap-2 mb-2">
+                  <svg
+                    class="w-5 h-5 text-blue-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M13 10V3L4 14h7v7l9-11h-7z"
+                    >
+                    </path>
+                  </svg>
+                  <span class="font-semibold text-blue-800 dark:text-blue-200">
+                    Technical Necessity
+                  </span>
+                </div>
+                <p class="text-blue-700 dark:text-blue-300 text-sm">
+                  Location coordinates are stored in plain text to enable efficient PostGIS spatial queries for fire detection and distance calculations. This technical requirement ensures accurate and fast fire alerts while maintaining our no-third-party-sharing policy.
+                </p>
+              </div>
+            </div>
+
+            <div class="bg-white/60 dark:bg-zinc-900/60 backdrop-blur-sm rounded-2xl p-8 shadow-xl border border-zinc-200/50 dark:border-zinc-700/50 mb-8">
+              <h2 class="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">
+                📊 What We Collect
+              </h2>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="space-y-4">
+                  <h3 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                    ✅ We Collect (Minimal)
+                  </h3>
+                  <ul class="space-y-2 text-zinc-700 dark:text-zinc-300">
+                    <li class="flex items-center gap-2">
+                      <svg
+                        class="w-4 h-4 text-green-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M5 13l4 4L19 7"
+                        >
+                        </path>
+                      </svg>
+                      Email addresses (for notifications and authentication)
+                    </li>
+                    <li class="flex items-center gap-2">
+                      <svg
+                        class="w-4 h-4 text-green-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M5 13l4 4L19 7"
+                        >
+                        </path>
+                      </svg>
+                      Location coordinates (unencrypted for spatial queries)
+                    </li>
+                    <li class="flex items-center gap-2">
+                      <svg
+                        class="w-4 h-4 text-green-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M5 13l4 4L19 7"
+                        >
+                        </path>
+                      </svg>
+                      Notification preferences
+                    </li>
+                  </ul>
+                </div>
+                <div class="space-y-4">
+                  <h3 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                    ❌ We Don't Collect
+                  </h3>
+                  <ul class="space-y-2 text-zinc-700 dark:text-zinc-300">
+                    <li class="flex items-center gap-2">
+                      <svg
+                        class="w-4 h-4 text-red-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M6 18L18 6M6 6l12 12"
+                        >
+                        </path>
+                      </svg>
+                      Personal identification information
+                    </li>
+                    <li class="flex items-center gap-2">
+                      <svg
+                        class="w-4 h-4 text-red-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M6 18L18 6M6 6l12 12"
+                        >
+                        </path>
+                      </svg>
+                      Usage analytics or tracking
+                    </li>
+                    <li class="flex items-center gap-2">
+                      <svg
+                        class="w-4 h-4 text-red-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M6 18L18 6M6 6l12 12"
+                        >
+                        </path>
+                      </svg>
+                      Device information or fingerprints
+                    </li>
+                    <li class="flex items-center gap-2">
+                      <svg
+                        class="w-4 h-4 text-red-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M6 18L18 6M6 6l12 12"
+                        >
+                        </path>
+                      </svg>
+                      Cookies or tracking pixels
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-white/60 dark:bg-zinc-900/60 backdrop-blur-sm rounded-2xl p-8 shadow-xl border border-zinc-200/50 dark:border-zinc-700/50 mb-8">
+              <h2 class="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">
+                🛰️ How We Use Location Data
+              </h2>
+              <p class="text-zinc-700 dark:text-zinc-300 mb-6">
+                Your location data is used exclusively for fire detection and alerting. Here's exactly how:
+              </p>
+              <div class="space-y-4">
+                <div class="flex items-start gap-3">
+                  <div class="w-8 h-8 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center text-orange-600 dark:text-orange-400 font-bold text-sm">
+                    1
+                  </div>
+                  <div>
+                    <h3 class="font-semibold text-zinc-900 dark:text-zinc-100 mb-1">
+                      NASA Satellite Integration
+                    </h3>
+                    <p class="text-zinc-600 dark:text-zinc-400 text-sm">
+                      We compare your stored locations against NASA's FIRMS satellite fire detections to identify fires within your specified radius.
+                    </p>
+                  </div>
+                </div>
+                <div class="flex items-start gap-3">
+                  <div class="w-8 h-8 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center text-orange-600 dark:text-orange-400 font-bold text-sm">
+                    2
+                  </div>
+                  <div>
+                    <h3 class="font-semibold text-zinc-900 dark:text-zinc-100 mb-1">
+                      Distance Calculation
+                    </h3>
+                    <p class="text-zinc-600 dark:text-zinc-400 text-sm">
+                      Location coordinates are used to calculate distances and determine if a detected fire falls within your monitoring radius.
+                    </p>
+                  </div>
+                </div>
+                <div class="flex items-start gap-3">
+                  <div class="w-8 h-8 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center text-orange-600 dark:text-orange-400 font-bold text-sm">
+                    3
+                  </div>
+                  <div>
+                    <h3 class="font-semibold text-zinc-900 dark:text-zinc-100 mb-1">
+                      Alert Delivery
+                    </h3>
+                    <p class="text-zinc-600 dark:text-zinc-400 text-sm">
+                      Once a fire is detected in your area, your location data is used to deliver targeted alerts via your preferred notification method.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-white/60 dark:bg-zinc-900/60 backdrop-blur-sm rounded-2xl p-8 shadow-xl border border-zinc-200/50 dark:border-zinc-700/50 mb-8">
+              <h2 class="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">
+                🔐 Data Security & Encryption
+              </h2>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h3 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-3">
+                    Security
+                  </h3>
+                  <ul class="space-y-2 text-zinc-700 dark:text-zinc-300 text-sm">
+                    <li>• Location coordinates stored unencrypted for PostGIS efficiency</li>
+                    <li>• Secure HTTPS transmission only</li>
+                    <li>• Database access controls and authentication</li>
+                    <li>• Regular security audits and updates</li>
+                  </ul>
+                </div>
+                <div>
+                  <h3 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-3">
+                    Storage
+                  </h3>
+                  <ul class="space-y-2 text-zinc-700 dark:text-zinc-300 text-sm">
+                    <li>• Data stored in secure, compliant databases</li>
+                    <li>• No third-party data sharing</li>
+                    <li>• Minimal data retention policies</li>
+                    <li>• Secure backup and recovery procedures</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-white/60 dark:bg-zinc-900/60 backdrop-blur-sm rounded-2xl p-8 shadow-xl border border-zinc-200/50 dark:border-zinc-700/50 mb-8">
+              <h2 class="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">
+                📞 Your Rights & Controls
+              </h2>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h3 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-3">
+                    Your Privacy Rights
+                  </h3>
+                  <ul class="space-y-2 text-zinc-700 dark:text-zinc-300 text-sm">
+                    <li>• <strong>Access:</strong> View all your stored data</li>
+                    <li>• <strong>Delete:</strong> Remove your account and data anytime</li>
+                    <li>• <strong>Export:</strong> Download your data in standard formats</li>
+                    <li>• <strong>Opt-out:</strong> Stop all communications instantly</li>
+                  </ul>
+                </div>
+                <div>
+                  <h3 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-3">
+                    Contact Us
+                  </h3>
+                  <p class="text-zinc-700 dark:text-zinc-300 text-sm mb-4">
+                    Questions about your privacy? We're here to help.
+                  </p>
+                  <a
+                    href="mailto:privacy@fireping.com"
+                    class="inline-flex items-center gap-2 text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 font-medium"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                      >
+                      </path>
+                    </svg>
+                    privacy@fireping.com
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-white/60 dark:bg-zinc-900/60 backdrop-blur-sm rounded-2xl p-8 shadow-xl border border-zinc-200/50 dark:border-zinc-700/50 mb-8">
+              <h2 class="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">
+                🌍 International Data Transfers
+              </h2>
+              <p class="text-zinc-700 dark:text-zinc-300 mb-4">
+                We are committed to complying with international privacy regulations including:
+              </p>
+              <div class="flex flex-wrap gap-3">
+                <span class="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded-full text-sm">
+                  GDPR
+                </span>
+                <span class="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded-full text-sm">
+                  CCPA
+                </span>
+                <span class="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded-full text-sm">
+                  PIPEDA
+                </span>
+                <span class="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded-full text-sm">
+                  LGPD
+                </span>
+              </div>
+              <p class="text-zinc-600 dark:text-zinc-400 text-sm mt-4">
+                All international data transfers are conducted in compliance with applicable privacy laws and with appropriate safeguards in place.
+              </p>
+            </div>
+
+            <div class="bg-white/60 dark:bg-zinc-900/60 backdrop-blur-sm rounded-2xl p-8 shadow-xl border border-zinc-200/50 dark:border-zinc-700/50">
+              <h2 class="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">
+                🔄 Changes to This Policy
+              </h2>
+              <p class="text-zinc-700 dark:text-zinc-300 mb-4">
+                We may update this Privacy Policy from time to time. We will notify you of any changes by:
+              </p>
+              <ul class="space-y-2 text-zinc-700 dark:text-zinc-300 text-sm mb-4">
+                <li>• Email notification to your registered address</li>
+                <li>• Prominent notice on our website</li>
+                <li>• Update to the "Last updated" date above</li>
+              </ul>
+              <p class="text-zinc-600 dark:text-zinc-400 text-sm">
+                Your continued use of FirePing after any changes constitutes acceptance of the updated Privacy Policy.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+      
+<!-- Footer -->
+      <footer class="relative px-4 sm:px-6 lg:px-8 py-12 bg-zinc-900 dark:bg-black">
+        <div class="max-w-7xl mx-auto">
+          <div class="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div class="flex items-center gap-3">
+              <span class="text-2xl">🔥</span>
+              <span class="text-xl font-bold text-white">FirePing</span>
+            </div>
+            <div class="flex items-center gap-6 text-sm text-zinc-400">
+              <a href="/" class="hover:text-white transition-colors">Home</a>
+              <a href="/privacy" class="hover:text-white transition-colors">Privacy</a>
+              <a href="/terms" class="hover:text-white transition-colors">Terms</a>
+              <a
+                href="https://github.com/lightningk0ala/fireping"
+                class="hover:text-white transition-colors"
+                target="_blank"
+                rel="noopener"
+              >
+                GitHub
+              </a>
+            </div>
+          </div>
+          <div class="mt-8 pt-8 border-t border-zinc-800 text-center text-sm text-zinc-500">
+            <p>© {Date.utc_today().year} FirePing. Protecting what matters most.</p>
+          </div>
+        </div>
+      </footer>
+    </div>
+    
+<!-- JavaScript -->
+    <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
+    </script>
+  </body>
+</html>

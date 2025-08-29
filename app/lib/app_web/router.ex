@@ -18,6 +18,8 @@ defmodule AppWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+    get "/privacy", PageController, :privacy
+    get "/terms", PageController, :terms
     get "/session/login/:user_id", SessionController, :login
     get "/session/logout", SessionController, :logout
 

@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en" class="[scrollbar-gutter:stable]">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <meta name="theme-color" content="#dc2626" />
+    
+<!-- Primary Meta Tags -->
+    <title>Terms of Service - FirePing | Usage Terms & Conditions</title>
+    <meta name="title" content="Terms of Service - FirePing | Usage Terms & Conditions" />
+    <meta
+      name="description"
+      content="Read FirePing's terms of service and usage conditions. Understand your rights and responsibilities when using our fire alert platform."
+    />
+    <meta
+      name="keywords"
+      content="terms of service, terms and conditions, user agreement, service terms, legal terms"
+    />
+    
+<!-- Stylesheets -->
+    <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
+  </head>
+  <body class="bg-zinc-50 dark:bg-zinc-900 dark:text-zinc-100 antialiased min-h-screen">
+    <div class="relative min-h-screen overflow-hidden">
+      <!-- Animated background -->
+      <div class="absolute inset-0 -z-10">
+        <div class="absolute inset-0 bg-gradient-to-br from-orange-50 via-red-50 to-amber-50 dark:from-zinc-950 dark:via-black dark:to-zinc-900">
+        </div>
+        <div class="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-r from-orange-400/20 to-red-500/20 rounded-full blur-3xl animate-pulse">
+        </div>
+        <div class="absolute bottom-0 right-1/4 w-96 h-96 bg-gradient-to-r from-red-400/20 to-orange-500/20 rounded-full blur-3xl animate-pulse delay-1000">
+        </div>
+        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-gradient-to-r from-amber-400/10 to-orange-500/10 rounded-full blur-2xl animate-pulse delay-500">
+        </div>
+      </div>
+      
+<!-- Navigation -->
+      <nav class="relative z-10 px-4 sm:px-6 lg:px-8 py-6">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+          <a href="/" class="flex items-center gap-3">
+            <div class="relative">
+              <span class="text-3xl">🔥</span>
+              <div class="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></div>
+            </div>
+            <div>
+              <span class="text-2xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+                FirePing
+              </span>
+              <div class="text-xs text-zinc-500 dark:text-zinc-400 -mt-1">Live Fire Alerts</div>
+            </div>
+          </a>
+          <div class="flex items-center gap-4">
+            <a
+              href="/"
+              class="text-zinc-700 dark:text-zinc-300 hover:text-orange-600 dark:hover:text-orange-400 transition-colors"
+            >
+              ← Back to Home
+            </a>
+          </div>
+        </div>
+      </nav>
+      
+<!-- Terms Content -->
+      <section class="relative px-4 sm:px-6 lg:px-8 py-20">
+        <div class="max-w-4xl mx-auto">
+          <div class="text-center mb-12">
+            <h1 class="text-4xl sm:text-5xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">
+              Terms of Service
+            </h1>
+            <p class="text-xl text-zinc-600 dark:text-zinc-300">
+              Clear terms for using FirePing's fire alert services.
+            </p>
+            <p class="text-sm text-zinc-500 dark:text-zinc-400 mt-4">
+              Last updated: {Date.utc_today() |> Calendar.strftime("%B %d, %Y")}
+            </p>
+          </div>
+
+          <div class="prose prose-lg dark:prose-invert max-w-none">
+            <div class="bg-white/60 dark:bg-zinc-900/60 backdrop-blur-sm rounded-2xl p-8 shadow-xl border border-zinc-200/50 dark:border-zinc-700/50 mb-8">
+              <h2 class="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">
+                📋 Agreement to Terms
+              </h2>
+              <p class="text-zinc-700 dark:text-zinc-300 mb-4">
+                By accessing and using FirePing, you accept and agree to be bound by the terms and provision of this agreement. If you do not agree to abide by the above, please do not use this service.
+              </p>
+              <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
+                <div class="flex items-center gap-2 mb-2">
+                  <svg
+                    class="w-5 h-5 text-blue-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    >
+                    </path>
+                  </svg>
+                  <span class="font-semibold text-blue-800 dark:text-blue-200">
+                    Important Notice
+                  </span>
+                </div>
+                <p class="text-blue-700 dark:text-blue-300 text-sm">
+                  These terms apply to all users of FirePing, including free tier users. Fire alerts are provided as-is and should not replace official emergency services.
+                </p>
+              </div>
+            </div>
+
+            <div class="bg-white/60 dark:bg-zinc-900/60 backdrop-blur-sm rounded-2xl p-8 shadow-xl border border-zinc-200/50 dark:border-zinc-700/50 mb-8">
+              <h2 class="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">
+                🔔 Fire Alert Service
+              </h2>
+              <div class="space-y-6">
+                <div>
+                  <h3 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
+                    Service Description
+                  </h3>
+                  <p class="text-zinc-700 dark:text-zinc-300">
+                    FirePing provides automated fire detection alerts based on NASA satellite data. Our service monitors specified locations and sends notifications when fires are detected within your chosen radius.
+                  </p>
+                </div>
+                <div>
+                  <h3 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
+                    Service Limitations
+                  </h3>
+                  <ul class="space-y-2 text-zinc-700 dark:text-zinc-300">
+                    <li>
+                      • Fire detection relies on satellite visibility and weather conditions
+                    </li>
+                    <li>• Alerts are not guaranteed to be 100% accurate or immediate</li>
+                    <li>• Service may be unavailable during maintenance or technical issues</li>
+                    <li>
+                      • Cloud cover and atmospheric conditions may affect satellite detection
+                    </li>
+                  </ul>
+                </div>
+                <div>
+                  <h3 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
+                    Emergency Services Disclaimer
+                  </h3>
+                  <p class="text-zinc-700 dark:text-zinc-300">
+                    FirePing is not a substitute for official emergency services. In case of fire emergency, always contact your local fire department or emergency services immediately. Our alerts are supplemental notifications only.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-white/60 dark:bg-zinc-900/60 backdrop-blur-sm rounded-2xl p-8 shadow-xl border border-zinc-200/50 dark:border-zinc-700/50 mb-8">
+              <h2 class="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">
+                💰 Billing & Payments
+              </h2>
+              <div class="space-y-6">
+                <div>
+                  <h3 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
+                    Free Tier
+                  </h3>
+                  <p class="text-zinc-700 dark:text-zinc-300">
+                    The free tier is provided as-is with no guarantees of uptime or support. We reserve the right to modify or discontinue free features at any time.
+                  </p>
+                </div>
+                <div>
+                  <h3 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
+                    Paid Plans
+                  </h3>
+                  <ul class="space-y-2 text-zinc-700 dark:text-zinc-300">
+                    <li>• Pro Plan: $29/month, billed monthly or annually</li>
+                    <li>• Business Plan: $99/month, billed monthly or annually</li>
+                    <li>• All payments are non-refundable except as required by law</li>
+                    <li>• We may change pricing with 30 days notice</li>
+                    <li>• Failed payments may result in service suspension</li>
+                  </ul>
+                </div>
+                <div>
+                  <h3 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
+                    Subscription Management
+                  </h3>
+                  <p class="text-zinc-700 dark:text-zinc-300">
+                    You can cancel your subscription at any time. Cancellations take effect at the end of the current billing period. No partial refunds are provided for early cancellations.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-white/60 dark:bg-zinc-900/60 backdrop-blur-sm rounded-2xl p-8 shadow-xl border border-zinc-200/50 dark:border-zinc-700/50 mb-8">
+              <h2 class="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">
+                🚫 Prohibited Uses
+              </h2>
+              <p class="text-zinc-700 dark:text-zinc-300 mb-4">
+                You agree not to use FirePing for any unlawful or prohibited purposes, including but not limited to:
+              </p>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <ul class="space-y-2 text-zinc-700 dark:text-zinc-300">
+                  <li>• ❌ Violating any laws or regulations</li>
+                  <li>• ❌ Interfering with service operations</li>
+                  <li>• ❌ Creating false or misleading alerts</li>
+                  <li>• ❌ Sharing login credentials</li>
+                  <li>• ❌ Reverse engineering the service</li>
+                </ul>
+                <ul class="space-y-2 text-zinc-700 dark:text-zinc-300">
+                  <li>• ❌ Excessive API usage (rate limiting)</li>
+                  <li>• ❌ Harassment or spam via notifications</li>
+                  <li>• ❌ Impersonating authorities</li>
+                  <li>• ❌ Commercial use without paid plan</li>
+                  <li>• ❌ Any harmful or malicious activity</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="bg-white/60 dark:bg-zinc-900/60 backdrop-blur-sm rounded-2xl p-8 shadow-xl border border-zinc-200/50 dark:border-zinc-700/50 mb-8">
+              <h2 class="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">
+                🔒 Account Responsibilities
+              </h2>
+              <div class="space-y-6">
+                <div>
+                  <h3 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
+                    Account Security
+                  </h3>
+                  <p class="text-zinc-700 dark:text-zinc-300">
+                    You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account.
+                  </p>
+                </div>
+                <div>
+                  <h3 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
+                    Account Termination
+                  </h3>
+                  <p class="text-zinc-700 dark:text-zinc-300">
+                    We reserve the right to terminate or suspend your account at any time for violations of these terms or for any other reason we deem necessary.
+                  </p>
+                </div>
+                <div>
+                  <h3 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
+                    Data Ownership
+                  </h3>
+                  <p class="text-zinc-700 dark:text-zinc-300">
+                    You retain ownership of your location data and notification preferences. We do not claim ownership of your data.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-white/60 dark:bg-zinc-900/60 backdrop-blur-sm rounded-2xl p-8 shadow-xl border border-zinc-200/50 dark:border-zinc-700/50 mb-8">
+              <h2 class="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">
+                ⚖️ Liability & Disclaimers
+              </h2>
+              <div class="space-y-6">
+                <div>
+                  <h3 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
+                    Service Availability
+                  </h3>
+                  <p class="text-zinc-700 dark:text-zinc-300">
+                    FirePing is provided "as is" without warranties of any kind. We do not guarantee uninterrupted service or error-free operation.
+                  </p>
+                </div>
+                <div>
+                  <h3 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
+                    Limitation of Liability
+                  </h3>
+                  <p class="text-zinc-700 dark:text-zinc-300">
+                    In no event shall FirePing be liable for any indirect, incidental, special, or consequential damages arising out of or in connection with your use of the service.
+                  </p>
+                </div>
+                <div>
+                  <h3 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
+                    Third-Party Services
+                  </h3>
+                  <p class="text-zinc-700 dark:text-zinc-300">
+                    Our service integrates with third-party services (NASA FIRMS, email providers, etc.). We are not responsible for the availability or accuracy of these third-party services.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-white/60 dark:bg-zinc-900/60 backdrop-blur-sm rounded-2xl p-8 shadow-xl border border-zinc-200/50 dark:border-zinc-700/50 mb-8">
+              <h2 class="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">
+                📞 Contact Information
+              </h2>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h3 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-3">
+                    General Support
+                  </h3>
+                  <a
+                    href="mailto:support@fireping.com"
+                    class="inline-flex items-center gap-2 text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 font-medium"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                      >
+                      </path>
+                    </svg>
+                    support@fireping.com
+                  </a>
+                </div>
+                <div>
+                  <h3 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-3">
+                    Legal Matters
+                  </h3>
+                  <a
+                    href="mailto:legal@fireping.com"
+                    class="inline-flex items-center gap-2 text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 font-medium"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                      >
+                      </path>
+                    </svg>
+                    legal@fireping.com
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-white/60 dark:bg-zinc-900/60 backdrop-blur-sm rounded-2xl p-8 shadow-xl border border-zinc-200/50 dark:border-zinc-700/50">
+              <h2 class="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">
+                📝 Changes to Terms
+              </h2>
+              <p class="text-zinc-700 dark:text-zinc-300 mb-4">
+                We may update these Terms of Service from time to time. We will notify users of significant changes by:
+              </p>
+              <ul class="space-y-2 text-zinc-700 dark:text-zinc-300 text-sm mb-4">
+                <li>• Email notification to registered users</li>
+                <li>• Prominent notice on our website</li>
+                <li>• Update to the "Last updated" date at the top</li>
+              </ul>
+              <p class="text-zinc-600 dark:text-zinc-400 text-sm">
+                Continued use of FirePing after changes constitutes acceptance of the updated terms.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+      
+<!-- Footer -->
+      <footer class="relative px-4 sm:px-6 lg:px-8 py-12 bg-zinc-900 dark:bg-black">
+        <div class="max-w-7xl mx-auto">
+          <div class="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div class="flex items-center gap-3">
+              <span class="text-2xl">🔥</span>
+              <span class="text-xl font-bold text-white">FirePing</span>
+            </div>
+            <div class="flex items-center gap-6 text-sm text-zinc-400">
+              <a href="/" class="hover:text-white transition-colors">Home</a>
+              <a href="/privacy" class="hover:text-white transition-colors">Privacy</a>
+              <a href="/terms" class="hover:text-white transition-colors">Terms</a>
+              <a
+                href="https://github.com/lightningk0ala/fireping"
+                class="hover:text-white transition-colors"
+                target="_blank"
+                rel="noopener"
+              >
+                GitHub
+              </a>
+            </div>
+          </div>
+          <div class="mt-8 pt-8 border-t border-zinc-800 text-center text-sm text-zinc-500">
+            <p>© {Date.utc_today().year} FirePing. Protecting what matters most.</p>
+          </div>
+        </div>
+      </footer>
+    </div>
+    
+<!-- JavaScript -->
+    <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
+    </script>
+  </body>
+</html>
