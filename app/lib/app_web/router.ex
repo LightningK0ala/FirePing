@@ -18,10 +18,12 @@ defmodule AppWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
-    get "/privacy", PageController, :privacy
-    get "/terms", PageController, :terms
     get "/session/login/:user_id", SessionController, :login
     get "/session/logout", SessionController, :logout
+
+    # Waitlist routes
+    live "/waitlist/pro", ProWaitlistLive, :pro
+    live "/waitlist/business", ProWaitlistLive, :business
 
     live_session :unauthenticated,
       on_mount: [{AppWeb.Live.Auth, :redirect_if_user_is_authenticated}] do
